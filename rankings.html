@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>랭킹 — Thunder</title>
+    <link rel="icon" href="assets/logo.svg">
+    <link rel="manifest" href="manifest.webmanifest">
+    <script defer src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-50 text-gray-900">
+    <header class="border-b bg-white/80 backdrop-blur sticky top-0 z-40">
+      <div class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
+        <a href="index.html" class="flex items-center gap-2 font-bold text-lg">
+          <img src="assets/logo.svg" class="w-7 h-7" alt="Thunder logo" />
+          Thunder
+        </a>
+        <nav class="flex items-center gap-3">
+          <a href="rankings.html" class="px-3 py-1.5 rounded hover:bg-gray-100">랭킹</a>
+          <a href="login.html" class="px-3 py-1.5 rounded bg-black text-white hover:opacity-90">로그인</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-10">
+      <h1 class="text-2xl font-bold">KR 랭킹 — 코칭 신청</h1>
+      <p class="text-sm text-gray-600 mt-1">Top 5000 검증 코치만 코칭 신청이 가능합니다.</p>
+
+      <div class="mt-6 overflow-x-auto bg-white border rounded-xl">
+        <table class="min-w-[800px] w-full text-sm">
+          <thead class="bg-gray-100">
+            <tr>
+              <th class="px-4 py-3 text-left">순위</th>
+              <th class="px-4 py-3 text-left">소환사</th>
+              <th class="px-4 py-3">티어/LP</th>
+              <th class="px-4 py-3">포지션</th>
+              <th class="px-4 py-3">대표 챔프</th>
+              <th class="px-4 py-3">승률</th>
+              <th class="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody id="rankingBody"></tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- Coaching Modal -->
+    <div id="coachModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4">
+      <div class="bg-white rounded-2xl w-full max-w-lg p-6">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">코칭 신청</h2>
+          <button class="text-gray-500" onclick="closeCoachModal()">✕</button>
+        </div>
+        <p class="mt-1 text-sm text-gray-600">외부 연락처/계좌 공유 금지. 결제 후 1:1 채팅방이 자동 생성됩니다.</p>
+
+        <form class="mt-4 grid gap-3" onsubmit="return startCheckout(event)">
+          <input type="hidden" id="coachId" />
+          <div>
+            <label class="text-sm">세션 유형</label>
+            <select id="sessionType" class="w-full border rounded-xl px-3 py-2">
+              <option value="live30">라이브(30분)</option>
+              <option value="live60">라이브(60분)</option>
+              <option value="vod">VOD 리뷰(1판)</option>
+              <option value="text30">텍스트 Q&A(30분)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm">선호 일정</label>
+            <input id="preferredTime" type="datetime-local" class="w-full border rounded-xl px-3 py-2" />
+          </div>
+          <div class="bg-gray-50 border rounded-xl p-3 text-sm">
+            <div class="flex items-center justify-between">
+              <span>예상 결제 금액</span>
+              <strong id="pricePreview">-</strong>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">런칭 프로모션 하한가 적용. 실제 가격은 코치가 정합니다.</p>
+          </div>
+          <button class="mt-2 bg-black text-white rounded-xl px-4 py-2 hover:opacity-90">결제 진행</button>
+        </form>
+      </div>
+    </div>
+
+    <footer class="mt-16 border-t">
+      <div class="max-w-6xl mx-auto px-4 py-10 text-sm text-gray-500">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <p>© 2025 Thunder — 전적검색 무료 / 코칭은 유료(플랫폼 내 결제).</p>
+          <div class="flex gap-4">
+            <a href="terms.html" class="hover:underline">이용약관</a>
+            <a href="privacy.html" class="hover:underline">개인정보처리방침</a>
+          </div>
+        </div>
+        <p class="mt-2 text-xs">안내: 플랫폼 외 결제·연락처 공유 금지(계좌/전화/외부 메신저). 위반 시 제재.</p>
+      </div>
+    </footer>
+
+    <script defer src="assets/app.js"></script>
+  </body>
+</html>
