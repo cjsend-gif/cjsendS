@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>로그인 — Thunder</title>
+    <link rel="icon" href="assets/logo.svg">
+    <link rel="manifest" href="manifest.webmanifest">
+    <script defer src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-50 text-gray-900">
+    <header class="border-b bg-white/80 backdrop-blur sticky top-0 z-40">
+      <div class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
+        <a href="index.html" class="flex items-center gap-2 font-bold text-lg">
+          <img src="assets/logo.svg" class="w-7 h-7" alt="Thunder logo" />
+          Thunder
+        </a>
+        <nav class="flex items-center gap-3">
+          <a href="rankings.html" class="px-3 py-1.5 rounded hover:bg-gray-100">랭킹</a>
+          <a href="login.html" class="px-3 py-1.5 rounded bg-black text-white hover:opacity-90">로그인</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="max-w-md mx-auto px-4 py-16">
+      <h1 class="text-2xl font-bold">로그인</h1>
+      <p class="text-sm text-gray-600 mt-1">Riot 계정 연동은 로그인 후에 진행합니다.</p>
+      <div class="mt-6 grid gap-3">
+        <input id="email" type="email" placeholder="이메일" class="w-full border rounded-xl px-4 py-3" />
+        <input id="password" type="password" placeholder="비밀번호" class="w-full border rounded-xl px-4 py-3" />
+        <button class="bg-black text-white rounded-xl px-4 py-3 hover:opacity-90" onclick="fakeLogin()">이메일 로그인(데모)</button>
+        <button class="border rounded-xl px-4 py-3 hover:bg-gray-100" onclick="alert('구글 로그인: 추후 연동')">구글 로그인</button>
+        <button class="border rounded-xl px-4 py-3 hover:bg-gray-100" onclick="alert('카카오 로그인: 추후 연동')">카카오 로그인</button>
+      </div>
+      <p class="text-xs text-gray-500 mt-4">로그인하면 약관/개인정보/안티 포칭 정책에 동의합니다.</p>
+    </main>
+
+    <footer class="mt-16 border-t">
+      <div class="max-w-6xl mx-auto px-4 py-10 text-sm text-gray-500">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <p>© 2025 Thunder — 전적검색 무료 / 코칭은 유료(플랫폼 내 결제).</p>
+          <div class="flex gap-4">
+            <a href="terms.html" class="hover:underline">이용약관</a>
+            <a href="privacy.html" class="hover:underline">개인정보처리방침</a>
+          </div>
+        </div>
+        <p class="mt-2 text-xs">안내: 플랫폼 외 결제·연락처 공유 금지(계좌/전화/외부 메신저). 위반 시 제재.</p>
+      </div>
+    </footer>
+
+    <script defer src="assets/app.js"></script>
+  </body>
+</html>
