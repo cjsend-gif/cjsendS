@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Thunder — 전적검색 & 코칭</title>
+    <link rel="icon" href="assets/logo.svg">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="preload" href="assets/logo.svg" as="image" fetchpriority="high">
+    <script defer src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-50 text-gray-900">
+    <header class="border-b bg-white/80 backdrop-blur sticky top-0 z-40">
+      <div class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
+        <a href="index.html" class="flex items-center gap-2 font-bold text-lg">
+          <img src="assets/logo.svg" class="w-7 h-7" alt="Thunder logo" />
+          Thunder
+        </a>
+        <nav class="flex items-center gap-3">
+          <a href="rankings.html" class="px-3 py-1.5 rounded hover:bg-gray-100">랭킹</a>
+          <a href="login.html" class="px-3 py-1.5 rounded bg-black text-white hover:opacity-90">로그인</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-10">
+      <section class="mb-10">
+        <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight">전적검색 & 코칭 플랫폼</h1>
+        <p class="mt-2 text-gray-600">전적검색은 무료! 코칭/채팅/결제는 <strong>천둥(Thunder)</strong>에서 안전하게.</p>
+        <div class="mt-6 flex items-center gap-2">
+          <input id="summonerInput" type="text" placeholder="소환사명#태그" class="w-full md:w-2/3 px-4 py-3 border rounded-xl focus:outline-none focus:ring" />
+          <button onclick="searchSummoner()" class="px-5 py-3 rounded-xl bg-black text-white hover:opacity-90">검색</button>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">※ Riot API는 나중에 서버에서 연동합니다(현재는 데모).</p>
+        <div id="searchResult" class="mt-6 hidden"></div>
+      </section>
+
+      <section>
+        <div class="flex items-center justify-between">
+          <h2 class="text-xl font-semibold">추천 코치</h2>
+          <a href="rankings.html" class="text-sm underline">랭킹 전체보기</a>
+        </div>
+        <div id="coachGrid" class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+      </section>
+    </main>
+
+    <footer class="mt-16 border-t">
+      <div class="max-w-6xl mx-auto px-4 py-10 text-sm text-gray-500">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <p>© 2025 Thunder — 전적검색 무료 / 코칭은 유료(플랫폼 내 결제).</p>
+          <div class="flex gap-4">
+            <a href="terms.html" class="hover:underline">이용약관</a>
+            <a href="privacy.html" class="hover:underline">개인정보처리방침</a>
+          </div>
+        </div>
+        <p class="mt-2 text-xs">안내: 플랫폼 외 결제·연락처 공유 금지(계좌/전화/외부 메신저). 위반 시 제재.</p>
+      </div>
+    </footer>
+
+    <script defer src="assets/app.js"></script>
+  </body>
+</html>
