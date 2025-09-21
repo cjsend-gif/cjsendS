@@ -1,0 +1,21 @@
+name: Update Rankings JSON
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # 10분마다
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate rankings.json (dummy)
+        run: |
+          mkdir -p data
+          node -e "const fs=require('fs'); const rows=[{rank:12,name:'PlayerOne#KR1',tier:'Challenger 545LP',role:'MID',champ:'Ahri',win:'56%'},{rank:233,name:'JungleKing#KR1',tier:'Grandmaster 320LP',role:'JUNGLE',champ:'Lee Sin',win:'58%'},{rank:4899,name:'MacroGod#KR1',tier:'Master 120LP',role:'SUPPORT',champ:'Bard',win:'54%'}]; fs.writeFileSync('data/rankings.json', JSON.stringify(rows,null,2));"
+      - name: Commit & push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add data/rankings.json
+          git commit -m "chore: update rankings.json" || echo "no changes"
+          git push
