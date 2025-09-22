@@ -1,20 +1,47 @@
 const prices = { live30: 20000, live60: 30000, vod: 15000, text30: 10000 };
+https://cjsend.erickparkcha.workers.dev/
+// 맨 위 어딘가에 추가/수정
+const API = 'https://<네-worker-서브도메인>.workers.dev'; // 예: https://cjsend.erickparkcha.workers.dev
 
 async function searchSummoner(){
-  const v = document.getElementById('summonerInput').value.trim();
+  const input = document.getElementById('summonerInput').value.trim();
   const el = document.getElementById('searchResult');
-  if(!v){ alert('소환사명#태그를 입력하세요'); return; }
+  if(!input || !input.includes('#')){ alert('소환사명#태그 형식으로 입력'); return; }
+  const [gameName, tagLine] = input.split('#');
+
   el.classList.remove('hidden');
-  el.innerHTML = `<div class="bg-white border rounded-2xl p-4">
-    <div class="flex items-center justify-between">
-      <div>
-        <div class="font-semibold">${v}</div>
-        <div class="text-sm text-gray-500">최근 20경기 요약(데모)</div>
-      </div>
-      <a class="px-3 py-2 rounded-xl bg-black text-white" href="rankings.html">코칭 찾기</a>
-    </div>
-  </div>`;
+  el.innerHTML = `<div class="bg-white border rounded-2xl p-4">조회 중…</div>`;
+
+  try{
+    // Riot ID → PUUID + Summoner
+    const acc = await fetch(`${API}/api/summoner/by-riot-id?gameName=${encodeURIComponent(gameName)}&tagLine=${encodeURIComponent(tagLine)}`).then(r=>r.json());
+    if(!acc.ok) throw new Error(acc.msg || 'lookup failed');
+
+    // 최근 매치 20개
+    const list = await fetch(`${API}/api/matches/by-puuid?puuid=${encodeURIComponent(acc.puuid)}&count=20`).then(r=>r.json());
+    if(!list.ok) throw new Error('matches failed');
+
+    const items = list.ids.slice(0,5).map(id=>`<li class="text-xs">${id}</li>`).join('');
+    el.innerHTML = `
+      <div class="bg-white border rounded-2xl p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-semibold">${acc.gameName}#${acc.tagLine}</div>
+            <div class="text-sm text-gray-500">레벨 ${acc.summoner.summonerLevel} • PUUID: ${acc.puuid.slice(0,12)}…</div>
+          </div>
+          <a class="px-3 py-2 rounded-xl bg-black text-white" href="rankings.html">랭킹 보기</a>
+        </div>
+        <div class="mt-3">
+          <div class="text-sm font-medium mb-1">최근 매치ID (샘플)</div>
+          <ul class="list-disc ml-5">${items}</ul>
+        </div>
+      </div>`;
+  }catch(e){
+    console.error(e);
+    el.innerHTML = `<div class="bg-white border rounded-2xl p-4 text-red-600">조회 실패: 다시 시도</div>`;
+  }
 }
+
 
 function fakeLogin(){
   localStorage.setItem('demo_token','1');
