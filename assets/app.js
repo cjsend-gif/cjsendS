@@ -4,7 +4,7 @@
  *   예) https://cjsend.erickparkcha.workers.dev
  * =========================== */
 
-const API = 'https://cisend2.erickparkcha.workers.dev'; // ← 네 워커 주소 정확히!
+const API = 'https://cjsend2.erickparkcha.workers.dev/'; // ← 네 워커 주소 정확히!
 
 /* ---------- 공통 유틸 ---------- */
 async function apiGet(path) {
