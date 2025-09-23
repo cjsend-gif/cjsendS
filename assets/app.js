@@ -1,6 +1,12 @@
-/* assets/app.js — full advanced: charts+heatmap+role trend+hourly+items+compare+export+pagination+i18n+theme */
+/* assets/app.js — heatmap axis swap + item clustering + role KDA table + auto chart theme + (기존) charts/compare/export/pagination/i18n/theme */
 const API_BASE = "https://cjsend.erickparkcha.workers.dev";
-const STORAGE = { hist:"thunder_recent_searches", lang:"thunder_lang", theme:"thunder_theme" };
+const STORAGE = {
+  hist:"thunder_recent_searches",
+  lang:"thunder_lang",
+  theme:"thunder_theme",
+  chartTheme:"thunder_chart_theme",
+  heatAxes:"thunder_heat_axes",
+};
 const MAX_HISTORY = 8;
 
 let DDRAGON_VER = "latest";
@@ -30,22 +36,48 @@ function applyLang(){
   document.querySelectorAll("[data-i18n]").forEach(el=>{
     const k=el.dataset.i18n; const v=dict[k]; if(typeof v==="string") el.textContent=v;
   });
-  document.querySelector("#lang-code")?.replaceChildren(document.createTextNode(LANG.toUpperCase()));
+  $("#lang-code")?.replaceChildren(document.createTextNode(LANG.toUpperCase()));
 }
 applyLang();
 
-// Theme
+// Brand Theme (색상 팔레트)
 let THEME = localStorage.getItem(STORAGE.theme) || (new URL(location.href).searchParams.get("theme") || "blue"); // blue|violet|emerald
 const BRAND = { blue:{500:"#60a5fa",600:"#3b82f6"}, violet:{500:"#a78bfa",600:"#8b5cf6"}, emerald:{500:"#34d399",600:"#10b981"} };
 function hexToRgba(hex,a){ const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex); if(!m) return hex; const r=parseInt(m[1],16),g=parseInt(m[2],16),b=parseInt(m[3],16); return `rgba(${r},${g},${b},${a})`; }
-function applyTheme(){
+function applyBrandTheme(){
   const b=BRAND[THEME]||BRAND.blue;
-  document.getElementById("brand-override")?.remove();
+  $("#brand-override")?.remove();
   const s=document.createElement("style"); s.id="brand-override";
   s.textContent = `.btn-primary{background:${b[500]}}.btn-primary:hover{background:${b[600]}}.pill-active{box-shadow:0 0 0 4px ${hexToRgba(b[500],.35)};border-color:${b[500]}}`;
   document.head.appendChild(s);
 }
-applyTheme();
+applyBrandTheme();
+
+// Chart Theme (auto/dark/light)
+let CHART_THEME = localStorage.getItem(STORAGE.chartTheme) || "auto"; // auto|dark|light
+const mediaDark = window.matchMedia?.("(prefers-color-scheme: dark)");
+function isDarkMode(){
+  if (CHART_THEME === "dark") return true;
+  if (CHART_THEME === "light") return false;
+  return !!mediaDark?.matches;
+}
+function chartColors(){
+  const dark = isDarkMode();
+  return {
+    text: dark ? "#e5e7eb" : "#111827",
+    grid: dark ? "rgba(255,255,255,.15)" : "rgba(17,24,39,.15)",
+    heatCell: dark ? (v)=>`rgba(255,255,255,${Math.min(0.15 + v/10*0.85,1)})`
+                   : (v)=>`rgba(0,0,0,${Math.min(0.08 + v/12*0.75,0.9)})`,
+  };
+}
+function applyChartThemeGlobals(){
+  const c=chartColors();
+  Chart.defaults.color = c.text;
+  Chart.defaults.borderColor = c.grid;
+}
+applyChartThemeGlobals();
+$("#chart-theme-code")?.replaceChildren(document.createTextNode(CHART_THEME.toUpperCase()));
+mediaDark?.addEventListener?.("change", ()=>{ if(CHART_THEME==="auto" && out._accum){ applyChartThemeGlobals(); renderCharts(out._accum); } });
 
 // DOM
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
@@ -54,7 +86,9 @@ const recentWrap=$("#recent-wrap"), recentList=$("#recent-list");
 const statsSec=$("#stats"), moreBtn=$("#btn-more"), topNEl=$("#topN");
 const btnShare=$("#btn-share"), btnExport=$("#btn-export"), btnSaveCharts=$("#btn-save-charts");
 const compareInput=$("#compare-name"), btnCompare=$("#btn-compare");
-const itemsCloud=$("#items-cloud");
+const itemsCloud=$("#items-cloud"), itemsClusters=$("#items-clusters");
+const roleKDATBody = $("#role-kda-table tbody");
+const heatAxesSel=$("#heat-axes");
 
 // Helpers
 const safe=(v)=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -72,7 +106,7 @@ function renderHistory(){ const arr=getHistory(); if(!arr.length){ recentWrap.cl
 // Filters
 let currentFilter = new URL(location.href).searchParams.get("queue")?.toUpperCase() || "ALL";
 function setFilterUI(){ $$("#filter-bar .pill").forEach(b=>b.classList.toggle("pill-active", b.dataset.filter===currentFilter)); }
-filterBar?.addEventListener("click", (e)=>{ const b=e.target.closest("[data-filter]"); if(!b) return; currentFilter=b.dataset.filter; setFilterUI(); if(out._accum) renderProfile(out._raw,{filter:currentFilter}); syncURL(); });
+filterBar?.addEventListener("click", (e)=>{ const b=e.target.closest("[data-filter]"); if(!b) return; currentFilter=b.dataset.filter; setFilterUI(); if(out._raw) renderProfile(out._raw,{filter:currentFilter}); syncURL(); });
 
 // API
 let currentName = "";
@@ -84,7 +118,7 @@ async function fetchProfile(name, count=5, queue="ALL", start=0){
   return json;
 }
 
-// Items dictionary (for names/icons)
+// DDragon items
 let ITEM_DICT = null;
 async function ensureItemDict(){
   if (ITEM_DICT) return ITEM_DICT;
@@ -96,46 +130,131 @@ async function ensureItemDict(){
   }catch{ ITEM_DICT = {}; }
   return ITEM_DICT;
 }
+const itemIconURL = id => `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VER}/img/item/${id}.png`;
 
 // Charts
 let chartWin=null, chartRoles=null, chartTrend=null, chartChamps=null, chartKDA=null, chartRoleTrend=null, chartHeatmap=null, chartHourly=null;
+
+// Heatmap axes state
+let HEAT_AXES = localStorage.getItem(STORAGE.heatAxes) || "champ-queue"; // champ-queue | queue-champ
+heatAxesSel && (heatAxesSel.value = HEAT_AXES);
+
+// Role KDA table
+function renderRoleKDATable(items){
+  const roles = ["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"];
+  const rows = roles.map(r=>{
+    const arr = items.filter(m=>(m.role||"").toUpperCase()===r);
+    const kd = arr.map(m=>{
+      const [k,d,a] = (m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(x=>parseInt(x||"0",10));
+      return d===0? (k+a) : (k+a)/d;
+    });
+    const avg = kd.length ? (kd.reduce((s,v)=>s+v,0)/kd.length).toFixed(2) : "-";
+    return `<tr><td>${r}</td><td>${avg}</td><td>${arr.length}</td></tr>`;
+  }).join("");
+  roleKDATBody.innerHTML = rows;
+}
+
+// Items cloud (top 12)
+async function renderItemsCloud(items){
+  itemsCloud.innerHTML = "";
+  const dict = await ensureItemDict();
+  const freq = {};
+  for (const m of items) for (const id of (m.items||[])) if(id) freq[id]=(freq[id]||0)+1;
+  const top = Object.entries(freq).sort((a,b)=> b[1]-a[1]).slice(0, 12);
+  if (!top.length) { itemsCloud.innerHTML = `<div class="muted text-sm">데이터 없음</div>`; return; }
+  itemsCloud.innerHTML = top.map(([id,c])=>{
+    const meta = dict[id] || {}, name = meta.name || id;
+    return `<div class="flex items-center gap-2 border border-border rounded-xl px-2 py-1 bg-black/30" title="${safe(name)} ×${c}">
+      <img src="${itemIconURL(id)}" alt="${safe(name)}" class="w-8 h-8 rounded" />
+      <div class="text-sm">${safe(name)} <span class="muted">×${c}</span></div>
+    </div>`;
+  }).join("");
+}
+
+// Item build clustering (Jaccard ≥ 0.5, 단순 병합)
+function clusterBuilds(items){
+  const builds = items.map(m => Array.from(new Set((m.items||[]).filter(Boolean))).sort((a,b)=>a-b)).filter(a=>a.length);
+  const clusters = [];
+  const sim = (a,b)=>{
+    const A=new Set(a), B=new Set(b);
+    let inter=0; for(const x of A) if(B.has(x)) inter++;
+    const uni = A.size + B.size - inter;
+    return uni? inter/uni : 0;
+  };
+  for (const b of builds){
+    let placed=false;
+    for (const c of clusters){
+      if (sim(c.rep, b) >= 0.5){ c.items.push(b); // 합류
+        // 대표 갱신: 최빈 아이템 Top6
+        const f={}; for(const arr of c.items) for(const id of arr) f[id]=(f[id]||0)+1;
+        c.rep = Object.entries(f).sort((x,y)=>y[1]-x[1]).map(([id])=>+id).slice(0,6);
+        placed=true; break;
+      }
+    }
+    if(!placed) clusters.push({ rep:[...b], items:[b] });
+  }
+  // 정렬: 클러스터 크기 desc
+  return clusters.sort((a,b)=> b.items.length - a.items.length);
+}
+async function renderItemClusters(items){
+  itemsClusters.innerHTML = "";
+  const dict = await ensureItemDict();
+  const clusters = clusterBuilds(items).slice(0,5);
+  if(!clusters.length){ itemsClusters.innerHTML = `<div class="muted text-sm">데이터 없음</div>`; return; }
+  itemsClusters.innerHTML = clusters.map((c,idx)=>{
+    const rep = c.rep.map(id=>{
+      const name = dict[id]?.name || id;
+      return `<div class="flex items-center gap-1" title="${safe(name)}">
+        <img src="${itemIconURL(id)}" class="w-6 h-6 rounded" alt="${safe(name)}"><span class="text-xs">${safe(String(name).slice(0,10))}</span>
+      </div>`;
+    }).join("");
+    return `<div class="border border-border rounded-xl p-2 bg-black/30">
+      <div class="text-xs muted mb-1">Cluster ${idx+1} · ${c.items.length} games</div>
+      <div class="flex flex-wrap gap-2">${rep}</div>
+    </div>`;
+  }).join("");
+}
+
+// Charts render
 function renderCharts(items){
   if(!items?.length){ statsSec.classList.add("hidden"); return; }
   statsSec.classList.remove("hidden");
+  applyChartThemeGlobals();
+  const colors = chartColors();
 
-  // ------- Winrate doughnut -------
+  // Win/Loss
   const wins = items.filter(m=>m.win).length, losses = items.length - wins;
   chartWin?.destroy();
-  chartWin = new Chart(document.getElementById("chart-winrate"), {
+  chartWin = new Chart($("#chart-winrate"), {
     type: "doughnut",
     data: { labels:[LANG==="en"?"Win":"승", LANG==="en"?"Loss":"패"], datasets:[{ data:[wins,losses] }] },
-    options: { plugins:{ legend:{ labels:{ color:"#e5e7eb" } } } }
+    options: { plugins:{ legend:{ labels:{ color: colors.text } } } }
   });
 
-  // ------- Role distribution -------
+  // Roles
   const roles = ["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"];
   const counts = roles.map(r=> items.filter(x=>(x.role||"").toUpperCase()===r).length );
   chartRoles?.destroy();
-  chartRoles = new Chart(document.getElementById("chart-roles"), {
+  chartRoles = new Chart($("#chart-roles"), {
     type: "bar",
     data: { labels: roles, datasets:[{ data: counts }] },
-    options: { scales:{ x:{ ticks:{ color:"#e5e7eb"} }, y:{ ticks:{ color:"#e5e7eb"} } }, plugins:{ legend:{ display:false } } }
+    options: { scales:{ x:{ ticks:{ color:colors.text} }, y:{ ticks:{ color:colors.text} } }, plugins:{ legend:{ display:false } } }
   });
 
-  // ------- Winrate trend (cumulative) -------
+  // Winrate trend
   const sorted = [...items].sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
   let cumW=0;
   const trendLabels = sorted.map((m)=> new Date(m.timestamp||0).toLocaleDateString());
   const trendData = sorted.map((m,i)=> { if(m.win) cumW++; return Math.round((cumW/ (i+1))*100); });
   chartTrend?.destroy();
-  chartTrend = new Chart(document.getElementById("chart-trend"), {
+  chartTrend = new Chart($("#chart-trend"), {
     type: "line",
     data: { labels: trendLabels, datasets:[{ data: trendData }] },
-    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:"#e5e7eb"} }, y:{ ticks:{ color:"#e5e7eb"} } } }
+    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:colors.text} }, y:{ ticks:{ color:colors.text} } } }
   });
 
-  // ------- TopN champs by WR -------
-  const topN = Math.min(Math.max(parseInt(document.getElementById("topN")?.value || "7", 10), 3), 15);
+  // TopN champs
+  const topN = Math.min(Math.max(parseInt($("#topN")?.value || "7", 10), 3), 15);
   const byChamp = {};
   for (const m of items){
     const c = m.champion || "Unknown";
@@ -146,28 +265,27 @@ function renderCharts(items){
   const champLabels = champs.map(([c])=>c);
   const champWR = champs.map(([c, s])=> Math.round((s.wins / s.games) * 100));
   chartChamps?.destroy();
-  chartChamps = new Chart(document.getElementById("chart-champs"), {
+  chartChamps = new Chart($("#chart-champs"), {
     type: "bar",
     data: { labels: champLabels, datasets:[{ data: champWR }] },
-    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:"#e5e7eb"} }, y:{ ticks:{ color:"#e5e7eb"} } } }
+    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:colors.text} }, y:{ ticks:{ color:colors.text} } } }
   });
 
-  // ------- KDA boxplot -------
+  // KDA boxplot
   const kdas = items.map(m=>{
     const [k,d,a] = (m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(x=>parseInt(x||"0",10));
     const v = d===0 ? (k+a) : (k+a)/d; return Number.isFinite(v)? v : 0;
   }).filter(x=>x>=0);
   const bp = (arr)=>{ if(!arr.length) return {min:0,q1:0,median:0,q3:0,max:0}; const a=[...arr].sort((x,y)=>x-y); const q=p=>a[Math.floor((a.length-1)*p)]; return {min:a[0],q1:q(0.25),median:q(0.5),q3:q(0.75),max:a[a.length-1] }; }
   chartKDA?.destroy();
-  chartKDA = new Chart(document.getElementById("chart-kda"), {
+  chartKDA = new Chart($("#chart-kda"), {
     type: "boxplot",
     data: { labels:["KDA"], datasets:[{ data:[bp(kdas)] }] },
-    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:"#e5e7eb"} }, y:{ ticks:{ color:"#e5e7eb"} } } }
+    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:colors.text} }, y:{ ticks:{ color:colors.text} } } }
   });
 
-  // ------- Role-wise winrate trend -------
-  const roleSeries = {};
-  const timeLabels = sorted.map(m=> new Date(m.timestamp||0).toLocaleDateString());
+  // Role-wise trend
+  const roleSeries = {}; const timeLabels = sorted.map(m=> new Date(m.timestamp||0).toLocaleDateString());
   for (const r of roles) roleSeries[r] = { cum:0, cnt:0, ys:[] };
   for (const m of sorted){
     const r = (m.role||"").toUpperCase();
@@ -177,109 +295,100 @@ function renderCharts(items){
     }
   }
   chartRoleTrend?.destroy();
-  chartRoleTrend = new Chart(document.getElementById("chart-role-trend"), {
+  chartRoleTrend = new Chart($("#chart-role-trend"), {
     type: "line",
-    data: { labels: timeLabels, datasets: roles.map((R,i)=>({ label:R, data: roleSeries[R].ys, spanGaps:true })) },
-    options: { scales:{ x:{ ticks:{ color:"#e5e7eb"} }, y:{ ticks:{ color:"#e5e7eb"} } } }
+    data: { labels: timeLabels, datasets: roles.map(R=>({ label:R, data: roleSeries[R].ys, spanGaps:true })) },
+    options: { scales:{ x:{ ticks:{ color:colors.text} }, y:{ ticks:{ color:colors.text} } } }
   });
 
-  // ------- Champion KDA heatmap (Top10 × Queue) -------
-  const top10 = Object.entries(byChamp).sort((a,b)=> b[1].games - a[1].games).slice(0, 10).map(([c])=>c);
+  // Heatmap (axes toggle)
   const queues = ["RANKED_SOLO_5x5","RANKED_FLEX_SR","ARAM","NORMAL"];
-  const kdaBy = {}; // kda avg per champ & queue
-  for (const c of top10) { kdaBy[c]={}; for (const q of queues) kdaBy[c][q]=[]; }
+  const topMap = {}; // champ -> count
+  for (const m of items){ const c = m.champion || "Unknown"; topMap[c]=(topMap[c]||0)+1; }
+  const topChamps = Object.entries(topMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([c])=>c);
+
+  // avg KDA by champ,queue
+  const kdaBy = {};
+  for (const c of topChamps){ kdaBy[c]={}; for (const q of queues) kdaBy[c][q]=[]; }
   for (const m of items){
-    const c=m.champion||"Unknown";
-    if(!top10.includes(c)) continue;
-    const q = (m.queueType|| (m.gameMode==="CLASSIC" ? "NORMAL":"")).replace("","NORMAL");
+    const c=m.champion||"Unknown"; if(!topChamps.includes(c)) continue;
+    const q=(m.queueType|| (m.gameMode==="CLASSIC" ? "NORMAL" : "NORMAL"));
     const [k,d,a] = (m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(x=>parseInt(x||"0",10));
-    const v = d===0 ? (k+a) : (k+a)/d;
-    const key = queues.includes(q)? q : (m.gameMode==="CLASSIC" ? "NORMAL" : "NORMAL");
+    const v=d===0?(k+a):(k+a)/d;
+    const key= queues.includes(q)? q : "NORMAL";
     kdaBy[c][key].push(v);
   }
+
+  // build matrix
+  const cfun = colors.heatCell;
   const dataMatrix = [];
-  top10.forEach((c, yIdx)=>{
-    queues.forEach((q, xIdx)=>{
-      const arr = kdaBy[c][q];
-      const val = arr.length ? (arr.reduce((s,v)=>s+v,0)/arr.length) : 0;
-      dataMatrix.push({ x:xIdx, y:yIdx, v: Math.round(val*100)/100 });
-    });
-  });
+  let xLabels=[], yLabels=[];
+  if (HEAT_AXES === "champ-queue"){
+    xLabels = queues; yLabels = topChamps;
+    topChamps.forEach((c,y)=> queues.forEach((q,x)=>{
+      const arr=kdaBy[c][q]; const val=arr.length? Math.round((arr.reduce((s,v)=>s+v,0)/arr.length)*100)/100 : 0;
+      dataMatrix.push({ x, y, v:val });
+    }));
+  } else { // queue-champ
+    xLabels = topChamps; yLabels = queues;
+    queues.forEach((q,y)=> topChamps.forEach((c,x)=>{
+      const arr=kdaBy[c][q]; const val=arr.length? Math.round((arr.reduce((s,v)=>s+v,0)/arr.length)*100)/100 : 0;
+      dataMatrix.push({ x, y, v:val });
+    }));
+  }
+
   chartHeatmap?.destroy();
-  chartHeatmap = new Chart(document.getElementById("chart-heatmap"), {
+  chartHeatmap = new Chart($("#chart-heatmap"), {
     type: "matrix",
     data: {
       datasets: [{
         data: dataMatrix,
-        width: ({chart}) => (chart.chartArea?.width||360)/queues.length - 6,
-        height: ({chart}) => (chart.chartArea?.height||220)/top10.length - 6,
-        backgroundColor: ctx => {
-          const v=ctx.raw.v||0; // 밝기 → 값
-          const alpha = Math.min(0.15 + v/10 * 0.85, 1);
-          return `rgba(255,255,255,${alpha})`;
-        },
-        borderColor: "rgba(229,231,235,.15)",
+        width: ({chart}) => (chart.chartArea?.width||360)/xLabels.length - 6,
+        height: ({chart}) => (chart.chartArea?.height||220)/yLabels.length - 6,
+        backgroundColor: ctx => cfun(ctx.raw.v||0),
+        borderColor: colors.grid,
         borderWidth: 1,
       }]
     },
     options: {
-      plugins: { legend: { display:false }, tooltip: { callbacks:{ title:(it)=>`${top10[it[0].raw.y]} × ${queues[it[0].raw.x]}`, label:(it)=>`KDA ${it.raw.v}` } } },
+      plugins: { legend: { display:false },
+        tooltip: { callbacks:{ title:(it)=>`${yLabels[it[0].raw.y]} × ${xLabels[it[0].raw.x]}`, label:(it)=>`KDA ${it.raw.v}` } } },
       scales: {
-        x: { ticks:{ color:"#e5e7eb", callback:(v)=>queues[v] }, grid:{ display:false } },
-        y: { ticks:{ color:"#e5e7eb", callback:(v)=>top10[v] }, grid:{ display:false } }
+        x: { ticks:{ color:colors.text, callback:(v)=>xLabels[v] }, grid:{ display:false } },
+        y: { ticks:{ color:colors.text, callback:(v)=>yLabels[v] }, grid:{ display:false } }
       }
     }
   });
 
-  // ------- Hourly winrate -------
+  // Hourly WR
   const byHour = Array.from({length:24}, ()=>({w:0,c:0}));
   for (const m of items){
     const d = new Date(m.timestamp||0);
-    const hour = d.getHours(); // 사용자의 브라우저 로컬 시간대
+    const hour = d.getHours();
     byHour[hour].c++; if(m.win) byHour[hour].w++;
   }
   const wrByHour = byHour.map(x=> x.c ? Math.round((x.w/x.c)*100) : 0);
   chartHourly?.destroy();
-  chartHourly = new Chart(document.getElementById("chart-hourly"), {
+  chartHourly = new Chart($("#chart-hourly"), {
     type: "bar",
     data: { labels: [...Array(24).keys()].map(h=>`${h}:00`), datasets:[{ data: wrByHour }] },
-    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:"#e5e7eb"} }, y:{ ticks:{ color:"#e5e7eb"} } } }
+    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:colors.text} }, y:{ ticks:{ color:colors.text} } } }
   });
 
-  // ------- Items cloud (Top 12 by freq) -------
+  // Derived UI
   renderItemsCloud(items);
+  renderItemClusters(items);
+  renderRoleKDATable(items);
 }
 
-function itemIconURL(id){ return `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VER}/img/item/${id}.png`; }
-async function renderItemsCloud(items){
-  itemsCloud.innerHTML = "";
-  const dict = await ensureItemDict();
-  const freq = {};
-  for (const m of items) {
-    for (const id of (m.items||[])) { if(!id) continue; freq[id]=(freq[id]||0)+1; }
-  }
-  const top = Object.entries(freq).sort((a,b)=> b[1]-a[1]).slice(0, 12);
-  if (!top.length) { itemsCloud.innerHTML = `<div class="muted text-sm">데이터 없음</div>`; return; }
-  itemsCloud.innerHTML = top.map(([id,c])=>{
-    const meta = dict[id] || {};
-    const name = meta.name || id;
-    const tip = name.replace(/"/g,'&quot;');
-    return `<div class="flex items-center gap-2 border border-border rounded-xl px-2 py-1 bg-black/30" title="${tip} ×${c}">
-      <img src="${itemIconURL(id)}" alt="${safe(name)}" class="w-8 h-8 rounded" />
-      <div class="text-sm">${safe(name)} <span class="muted">×${c}</span></div>
-    </div>`;
-  }).join("");
-}
-
-// Render
+// Render list
 function renderLoading(){ out.innerHTML = `<div class="animate-pulse text-white/70">Loading…</div>`; }
 function renderError(msg, debug=""){ const dict=i18n[LANG]; out.innerHTML = `<div class="border-l-4 border-red-500 bg-red-500/10 rounded-xl p-4"><div class="font-semibold mb-1">${dict.errTitle}</div><div>${safe(msg)}</div>${debug?`<pre class="mt-2 text-xs text-white/70 whitespace-pre-wrap">${safe(debug)}</pre>`:""}</div>`; statsSec.classList.add("hidden"); moreBtn.disabled=true; }
 function renderProfile(data, opts={}){
-  const dict=i18n[LANG]; const s=data.summoner||{}, r=data.rank||{}; const solo=r.solo, flex=r.flex;
+  const s=data.summoner||{}, r=data.rank||{}; const solo=r.solo, flex=r.flex;
   let items=data.summary||[];
   const f=(opts.filter||currentFilter||"ALL").toUpperCase();
   if(f!=="ALL"){ items=items.filter(m=>{ if(f==="RANKED_SOLO_5x5") return m.queueType==="RANKED_SOLO_5x5"; if(f==="RANKED_FLEX_SR") return m.queueType==="RANKED_FLEX_SR"; if(f==="NORMAL") return m.gameMode==="CLASSIC"&&!m.queueType; if(f==="ARAM") return m.gameMode==="ARAM"; return true; }); }
-
   if(Array.isArray(out._accum)) items = [...out._accum, ...items];
 
   const list = items.map(m=>{
@@ -327,7 +436,7 @@ function renderProfile(data, opts={}){
   moreBtn.disabled = false;
 }
 
-// CSV export
+// CSV / PNG export
 function toCSV(items){
   const header = ["matchId","mode","queue","champion","win","k","d","a","kda","cs","timeSec","timestamp","role","items"];
   const rows = items.map(m=>{
@@ -344,18 +453,14 @@ function download(filename, content, mime="text/plain"){
   const a=document.createElement("a"); a.href=url; a.download=filename; document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
 }
-
-// Save charts PNG (모든 canvas)
-btnSaveCharts?.addEventListener("click", ()=>{
-  const canvases = statsSec?.querySelectorAll("canvas") || [];
-  let idx=1;
-  canvases.forEach(cv=>{
-    try{
-      const url=cv.toDataURL("image/png");
-      const a=document.createElement("a"); a.href=url; a.download=`thunder_chart_${idx++}.png`;
-      document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),0);
-    }catch{}
-  });
+$("#btn-save-charts")?.addEventListener("click", ()=>{
+  const canvases = statsSec?.querySelectorAll("canvas") || []; let i=1;
+  canvases.forEach(cv=>{ try{ const url=cv.toDataURL("image/png"); const a=document.createElement("a"); a.href=url; a.download=`thunder_chart_${i++}.png`; document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),0); }catch{} });
+});
+$("#btn-export")?.addEventListener("click", ()=>{
+  if(!out._accum?.length) return;
+  const csv = toCSV(out._accum);
+  download(`thunder_${(currentName||"player").replace(/\W+/g,"_")}.csv`, csv, "text/csv;charset=utf-8");
 });
 
 // Share / deeplink
@@ -378,15 +483,8 @@ $("#btn-share")?.addEventListener("click", async ()=>{
   }catch{}
 });
 
-// Export CSV
-$("#btn-export")?.addEventListener("click", ()=>{
-  if(!out._accum?.length) return;
-  const csv = toCSV(out._accum);
-  download(`thunder_${(currentName||"player").replace(/\W+/g,"_")}.csv`, csv, "text/csv;charset=utf-8");
-});
-
 // Events
-function setFilterAndRender(){ setFilterUI(); if(out._accum) renderProfile(out._raw,{filter:currentFilter}); }
+function setFilterAndRender(){ setFilterUI(); if(out._raw) renderProfile(out._raw,{filter:currentFilter}); }
 form?.addEventListener("submit", async (e)=>{
   e.preventDefault();
   const name=(input?.value||"").trim();
@@ -402,7 +500,6 @@ form?.addEventListener("submit", async (e)=>{
   finally{ withRing(false); }
 });
 input?.addEventListener("keydown",(e)=>{ if(e.key==="Enter") form?.requestSubmit(); });
-
 recentList?.addEventListener("click",(e)=>{
   const btn=e.target.closest("[data-name]"); const del=e.target.closest("[data-del]");
   if(btn){ input.value=btn.dataset.name||""; form?.requestSubmit(); }
@@ -410,15 +507,15 @@ recentList?.addEventListener("click",(e)=>{
 });
 
 // 더보기
-moreBtn?.addEventListener("click", async ()=>{
-  if(!currentName) return; moreBtn.disabled=true;
+$("#btn-more")?.addEventListener("click", async ()=>{
+  if(!currentName) return; const btn=$("#btn-more"); btn.disabled=true;
   try{
     const data=await fetchProfile(currentName, 5, currentFilter, loadedCount);
     loadedCount += (data.summary||[]).length;
     if(out._accum) data.summary = [...out._accum, ...(data.summary||[])];
     renderProfile(data);
   }catch(err){ renderError(i18n[LANG].errLoad, String(err?.message||err)); }
-  finally{ moreBtn.disabled=false; }
+  finally{ btn.disabled=false; }
 });
 
 // Health
@@ -429,17 +526,31 @@ $("#btn-health")?.addEventListener("click", async ()=>{
   catch(e){ el.textContent=(LANG==="en"?"Failed: ":"요청 실패: ")+(e?.message||e); }
 });
 
-// Lang / Theme
+// Lang / Brand Theme / Chart Theme
 $("#btn-lang")?.addEventListener("click", ()=>{
   LANG = LANG==="en"?"ko":"en"; localStorage.setItem(STORAGE.lang, LANG); applyLang();
   setFilterAndRender(); syncURL();
 });
 $("#btn-theme")?.addEventListener("click", ()=>{
   THEME = THEME==="blue"?"violet":THEME==="violet"?"emerald":"blue";
-  localStorage.setItem(STORAGE.theme, THEME); applyTheme(); syncURL();
+  localStorage.setItem(STORAGE.theme, THEME); applyBrandTheme(); syncURL();
+});
+$("#btn-chart-theme")?.addEventListener("click", ()=>{
+  CHART_THEME = CHART_THEME==="auto" ? "dark" : CHART_THEME==="dark" ? "light" : "auto";
+  localStorage.setItem(STORAGE.chartTheme, CHART_THEME);
+  $("#chart-theme-code")?.replaceChildren(document.createTextNode(CHART_THEME.toUpperCase()));
+  applyChartThemeGlobals();
+  if(out._accum) renderCharts(out._accum);
 });
 
-// Compare mode (간단 비교)
+// Heatmap axes select
+heatAxesSel?.addEventListener("change", ()=>{
+  HEAT_AXES = heatAxesSel.value || "champ-queue";
+  localStorage.setItem(STORAGE.heatAxes, HEAT_AXES);
+  if(out._accum) renderCharts(out._accum);
+});
+
+// Compare mode
 $("#btn-compare")?.addEventListener("click", async ()=>{
   const nameA=(input?.value||"").trim();
   const nameB=(compareInput?.value||"").trim();
@@ -489,7 +600,7 @@ topNEl?.addEventListener("change", ()=>{ if(out._accum?.length) renderCharts(out
   const p=new URL(location.href).searchParams;
   const q=p.get("q"); const queue=p.get("queue"); const lang=p.get("lang"); const theme=p.get("theme");
   if(lang) { LANG=lang; localStorage.setItem(STORAGE.lang, LANG); applyLang(); }
-  if(theme){ THEME=theme; localStorage.setItem(STORAGE.theme, THEME); applyTheme(); }
+  if(theme){ THEME=theme; localStorage.setItem(STORAGE.theme, THEME); applyBrandTheme(); }
   if(queue){ currentFilter=queue.toUpperCase(); setFilterUI(); }
   renderHistory();
   if(q){ input.value=q; form?.requestSubmit(); } else setFilterUI();
