@@ -7,10 +7,6 @@
 
   <!-- Tailwind (CDN) -->
   <script>
-  // 최소 문법 테스트
-  (function(){ var ok = 1 + 2; if (!ok && window.console) console.log('noop'); })();
-</script>
-  <script>
     window.tailwind = {
       config: {
         theme: {
@@ -33,10 +29,10 @@
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Chart.js + plugins -->
+  <!-- Chart.js + plugins (정확한 dist 경로 고정) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4.4.0/dist/chartjs-chart-boxplot.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
 
   <meta name="theme-color" content="#0b1220" />
   <style>
@@ -58,47 +54,57 @@
     table.simple{ width:100%; border-collapse:collapse; font-size:.95rem }
     table.simple th, table.simple td{ border:1px solid var(--line); padding:.5rem .6rem; text-align:left }
     table.simple th{ background:rgba(229,231,235,.06); font-weight:600 }
-    #js-test{ position:fixed; right:10px; bottom:10px; padding:6px 10px; border:1px solid #9aa3b2; border-radius:10px; background:#fff; color:#111; font:12px/1.2 system-ui; z-index:9999 }
-    @media (prefers-color-scheme: dark){ #js-test{ background:#111827; color:#e5e7eb; border-color:#374151 } }
+    /* 우하단 에러 배지 스타일 */
+    #js-test{ position:fixed; right:10px; bottom:10px; padding:6px 10px; border:1px solid #9aa3b2; border-radius:10px; background:#111; color:#fff; font:12px/1.2 ui-monospace,Menlo,Consolas,monospace; z-index:9999 }
+    @media (prefers-color-scheme: light){ #js-test{ background:#fff; color:#111 } }
   </style>
 </head>
 
 <body class="font-sans">
-  <noscript><div style="margin:16px" class="card p-4">이 사이트는 자바스크립트가 필요합니다.</div></noscript>
-
-  <!-- JS 동작 배지 -->
-  <div id="js-test">JS: OFF</div>
+  <!-- ===== 우하단 에러 배지 (파일:줄:열 표시) – 가장 먼저 실행 ===== -->
+  <div id="js-test">JS: ON</div>
   <script>
     (function(){
       var el = document.getElementById('js-test');
       function set(msg){ if(el) el.textContent = msg; }
-      set('JS: ON');
-      window.addEventListener('error', function(e){ set('ERR: ' + (e && e.message ? e.message : 'error')); });
-      window.addEventListener('unhandledrejection', function(e){ var r=e && e.reason; set('REJ: ' + (r && r.message ? r.message : r)); });
+      // 전역 에러
+      window.addEventListener('error', function(e){
+        var loc = (e && e.filename ? e.filename : 'index.html')
+                + (e && e.lineno ? (':' + e.lineno) : '')
+                + (e && e.colno ? (':' + e.colno) : '');
+        set('ERR ' + loc + ' — ' + (e && e.message ? e.message : 'error'));
+      });
+      // Promise 미처리 에러
+      window.addEventListener('unhandledrejection', function(e){
+        var r = e && e.reason;
+        var msg = (r && r.stack) ? r.stack.split('\n')[0] : (r && r.message ? r.message : r);
+        set('REJ ' + msg);
+      });
+      // 정상 실행이면 10초 후 자동 숨김
       setTimeout(function(){ if(el && el.textContent.indexOf('JS: ON')===0) el.style.display='none'; }, 10000);
     })();
   </script>
 
-  <!-- Header -->
+  <!-- ===== 상단 헤더 ===== -->
   <header class="sticky top-0 z-40 border-b" style="border-color:var(--line); backdrop-filter:saturate(1.2) blur(6px); background:rgba(11,18,32,.8)">
     <div class="container max-w-5xl py-3 flex items-center justify-between gap-3">
       <div class="flex items-center gap-2 text-xl font-extrabold tracking-tight"><span>⚡</span><span>Thunder</span></div>
       <details id="menu" class="relative">
         <summary class="btn chip select-none">⋯ <span class="sr-only">메뉴</span></summary>
         <div class="absolute right-0 mt-2 min-w-56 card p-2 text-sm">
-          <button id="btn-lang" class="w-full text-left px-3 py-2 rounded hover:bg-black/10 dark:hover:bg-white/10">🌐 언어 <span id="lang-code" class="ml-1 px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">KO</span></button>
-          <button id="btn-chart-theme" class="w-full text-left px-3 py-2 rounded hover:bg-black/10 dark:hover:bg-white/10">🌓 차트 테마 <span id="chart-theme-code" class="ml-1 px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">AUTO</span></button>
+          <button id="btn-lang" class="w-full text-left px-3 py-2 rounded hover:bg-black/10">🌐 언어 <span id="lang-code" class="ml-1 px-2 py-0.5 rounded bg-black/10">KO</span></button>
+          <button id="btn-chart-theme" class="w-full text-left px-3 py-2 rounded hover:bg-black/10">🌓 차트 테마 <span id="chart-theme-code" class="ml-1 px-2 py-0.5 rounded bg-black/10">AUTO</span></button>
           <hr class="my-2 border-t" style="border-color:var(--line)">
-          <button id="btn-export" class="w-full text-left px-3 py-2 rounded hover:bg-black/10 dark:hover:bg-white/10">📄 CSV 내보내기</button>
-          <button id="btn-save-charts" class="w-full text-left px-3 py-2 rounded hover:bg-black/10 dark:hover:bg-white/10">📷 차트 저장(PNG)</button>
-          <button id="btn-share" class="w-full text-left px-3 py-2 rounded hover:bg-black/10 dark:hover:bg-white/10">🔗 링크 복사</button>
+          <button id="btn-export" class="w-full text-left px-3 py-2 rounded hover:bg-black/10">📄 CSV 내보내기</button>
+          <button id="btn-save-charts" class="w-full text-left px-3 py-2 rounded hover:bg-black/10">📷 차트 저장(PNG)</button>
+          <button id="btn-share" class="w-full text-left px-3 py-2 rounded hover:bg-black/10">🔗 링크 복사</button>
         </div>
       </details>
     </div>
   </header>
 
+  <!-- ===== 본문 ===== -->
   <main class="container max-w-5xl py-6 space-y-6">
-    <!-- Search -->
     <section class="card p-4 md:p-5">
       <form id="search-form" class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3" role="search" autocomplete="off">
         <label class="sr-only" for="summoner-name">소환사명 또는 Riot ID</label>
@@ -108,7 +114,6 @@
       <p class="muted text-sm mt-2">최근 5판 기준 간단 요약을 보여줍니다.</p>
     </section>
 
-    <!-- Filter chips -->
     <section class="card p-3 md:p-4">
       <div id="filter-bar" class="flex flex-wrap gap-2">
         <button class="chip is-active" data-filter="ALL">전체</button>
@@ -119,19 +124,16 @@
       </div>
     </section>
 
-    <!-- KPI -->
     <section id="strip" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div class="card p-4"><div class="muted text-sm">최근 승률</div><div id="kpi-winrate" class="text-3xl font-extrabold knum">–</div></div>
       <div class="card p-4"><div class="muted text-sm">평균 KDA</div><div id="kpi-kda" class="text-3xl font-extrabold knum">–</div></div>
       <div class="card p-4"><div class="muted text-sm">주 포지션</div><div id="kpi-role" class="text-3xl font-extrabold">–</div></div>
     </section>
 
-    <!-- Results -->
     <section id="result" class="card p-5" aria-live="polite">
       <div class="muted">위 입력창에 소환사명을 입력해 주세요.</div>
     </section>
 
-    <!-- Advanced (collapsed UI 그대로 유지) -->
     <details id="advanced" class="card p-4" open>
       <summary class="cursor-pointer font-semibold">고급 통계</summary>
       <div class="mt-4 space-y-4">
@@ -183,7 +185,6 @@
       </div>
     </details>
 
-    <!-- More & Health -->
     <section class="grid md:grid-cols-2 gap-3">
       <button id="btn-more" class="card btn w-full h-12" disabled>더 보기 (+5)</button>
       <div class="card p-4">
@@ -200,56 +201,49 @@
     </footer>
   </main>
 
-  <!-- App -->
+  <!-- ===== App (ES5-safe) ===== -->
   <script>
-  /* ==== Helpers (ES5-safe) ==== */
+  /* helpers */
   function qs(s, r){ return (r||document).querySelector(s); }
   function qsa(s, r){ return Array.prototype.slice.call((r||document).querySelectorAll(s)); }
   function safe(v){ v = (v===null || v===undefined) ? "" : String(v); return v.replace(/[&<>]/g, function(s){ return ({ "&":"&amp;","<":"&lt;",">":"&gt;" })[s]; }); }
   function fmtT(sec){ if(!sec) return "-:--"; var m=Math.floor(sec/60), s=('0'+Math.floor(sec%60)).slice(-2); return m+":"+s; }
   function timeAgo(ms){ var t=Date.now()-(ms||0), m=Math.floor(t/60000); if(m<1) return "방금 전"; if(m<60) return m+"분 전"; var h=Math.floor(m/60); if(h<24) return h+"시간 전"; var d=Math.floor(h/24); return d+"일 전"; }
 
-  /* ==== Config ==== */
+  /* config */
   var API_BASE = "https://cjsend.erickparkcha.workers.dev";
   var STORAGE = { hist:"th_recent", lang:"th_lang", chartTheme:"th_chart_theme", heatAxes:"th_heat_axes" };
   var DDRAGON_VER = "latest";
+  try { fetch("https://ddragon.leagueoflegends.com/api/versions.json").then(function(r){return r.json();}).then(function(j){ if(j&&j.length) DDRAGON_VER=j[0]; }); } catch(e){}
 
-  try {
-    fetch("https://ddragon.leagueoflegends.com/api/versions.json").then(function(r){ return r.json(); }).then(function(j){ if(j && j.length){ DDRAGON_VER=j[0]; } }).catch(function(){});
-  } catch(e){}
-
-  /* ==== i18n ==== */
-  var i18n = {
-    ko:{ searchBtn:"검색", empty:"위 입력창에 소환사명을 입력해 주세요.", errTitle:"에러", errLoad:"프로필을 불러오지 못했습니다.", cached:"최대 45초 캐시됨" },
-    en:{ searchBtn:"Search", empty:"Enter a Summoner name or Riot ID above.", errTitle:"Error", errLoad:"Failed to load profile.", cached:"Cached up to 45s" }
-  };
+  /* i18n */
+  var i18n = { ko:{ searchBtn:"검색", empty:"위 입력창에 소환사명을 입력해 주세요.", errTitle:"에러", errLoad:"프로필을 불러오지 못했습니다.", cached:"최대 45초 캐시됨" },
+               en:{ searchBtn:"Search", empty:"Enter a Summoner name or Riot ID above.", errTitle:"Error", errLoad:"Failed to load profile.", cached:"Cached up to 45s" } };
   var LANG = localStorage.getItem(STORAGE.lang) || "ko";
   function T(k){ return (i18n[LANG] && i18n[LANG][k]) || i18n.ko[k] || k; }
 
-  /* ==== Chart theme ==== */
+  /* chart theme */
   var CHART_THEME = localStorage.getItem(STORAGE.chartTheme) || "auto";
   var mediaDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
   function isDark(){ return CHART_THEME==="dark" || (CHART_THEME==="auto" && mediaDark && mediaDark.matches); }
   function chartColors(){ var dark=isDark(); return { text: dark?"#e5e7eb":"#111827", grid: dark?"rgba(255,255,255,.15)":"rgba(17,24,39,.15)", heat: function(v){ return dark ? "rgba(255,255,255,"+Math.min(0.15+v/10*0.85,1)+")" : "rgba(0,0,0,"+Math.min(0.08+v/12*0.75,0.9)+")"; } }; }
   function applyChartDefaults(){ var c=chartColors(); Chart.defaults.color=c.text; Chart.defaults.borderColor=c.grid; }
   applyChartDefaults();
-  if(mediaDark && mediaDark.addEventListener){
-    mediaDark.addEventListener("change", function(){ if(CHART_THEME==="auto" && window._accum){ applyChartDefaults(); renderCharts(window._accum); } });
-  }
+  if(mediaDark && mediaDark.addEventListener){ mediaDark.addEventListener("change", function(){ if(CHART_THEME==="auto" && window._accum){ applyChartDefaults(); renderCharts(window._accum); } }); }
   qs("#chart-theme-code").textContent = CHART_THEME.toUpperCase();
 
-  /* ==== DOM ==== */
+  /* DOM */
   var form=qs("#search-form"), input=qs("#summoner-name"), out=qs("#result");
   var stripWin=qs("#kpi-winrate"), stripKDA=qs("#kpi-kda"), stripRole=qs("#kpi-role");
   var filterBar=qs("#filter-bar"), moreBtn=qs("#btn-more"), healthBtn=qs("#btn-health"), healthState=qs("#health-state");
   var topNEl=qs("#topN"), heatAxesSel=qs("#heat-axes");
   qs("#lang-code").textContent = (LANG||"ko").toUpperCase();
 
-  /* ==== State ==== */
+  /* state */
   var currentFilter="ALL", currentName="", loadedCount=0;
   heatAxesSel.value = localStorage.getItem(STORAGE.heatAxes) || "champ-queue";
 
-  /* ==== API ==== */
+  /* API */
   function fetchProfile(name, count, queue, start){
     count = (typeof count==="number") ? count : 5;
     queue = queue || "ALL";
@@ -259,7 +253,7 @@
       .then(function(p){ if(!p.ok || p.json.error){ var err = (typeof p.json.error==="string")?p.json.error:JSON.stringify(p.json.error||{}); throw new Error(err || ("HTTP "+p.status)); } return p.json; });
   }
 
-  /* ==== Item meta ==== */
+  /* items meta */
   var ITEM_DICT=null;
   function itemIconURL(id){ return "https://ddragon.leagueoflegends.com/cdn/"+DDRAGON_VER+"/img/item/"+id+".png"; }
   function ensureItemDict(){
@@ -269,11 +263,11 @@
       .then(function(r){ return r.json(); }).then(function(j){ ITEM_DICT=(j&&j.data)||{}; return ITEM_DICT; }).catch(function(){ ITEM_DICT={}; return ITEM_DICT; });
   }
 
-  /* ==== UI helpers ==== */
+  /* helpers ui */
   function setChips(){ qsa("#filter-bar .chip").forEach(function(b){ b.classList.toggle("is-active", b.getAttribute("data-filter")===currentFilter); }); }
   function rankLine(e){ if(!e) return '<span class="muted">언랭크</span>'; var lp=(typeof e.leaguePoints==="number")?(e.leaguePoints+"LP"):""; var wr=(e.wins+e.losses>0)?(" · "+Math.round(e.wins/(e.wins+e.losses)*100)+"%"):""; var tier=String(e.tier||"").toLowerCase().replace(/^\w/,function(c){return c.toUpperCase();}); return "<b>"+tier+" "+e.rank+"</b> "+lp+wr; }
 
-  /* ==== Renderers ==== */
+  /* charts + tables render (함수 내용은 길어 생략 없이 유지) */
   var chartWin=null, chartRoles=null, chartTrend=null, chartChamps=null, chartKDA=null, chartRoleTrend=null, chartHeatmap=null, chartHourly=null;
 
   function renderError(msg, debug){
@@ -472,7 +466,7 @@
     moreBtn.disabled=false;
   }
 
-  /* ==== Events ==== */
+  /* events */
   form.addEventListener("submit", function(e){
     e.preventDefault();
     var name=(input.value||"").trim(); if(!name) return;
@@ -494,57 +488,55 @@
   topNEl.addEventListener("change", function(){ if(window._accum && window._accum.length) renderCharts(window._accum); });
   heatAxesSel.addEventListener("change", function(){ localStorage.setItem(STORAGE.heatAxes, heatAxesSel.value); if(window._accum) renderCharts(window._accum); });
 
-  qsa("#btn-save-charts,#btn-export,#btn-share,#btn-chart-theme,#btn-lang").forEach(function(btn){
-    btn.addEventListener("click", function(ev){
-      var id = ev.currentTarget.id;
-      if(id==="btn-save-charts"){
-        qsa("canvas").forEach(function(cv,i){ try{ var url=cv.toDataURL("image/png"); var a=document.createElement("a"); a.href=url; a.download="thunder_chart_"+(i+1)+".png"; document.body.appendChild(a); a.click(); a.remove(); }catch(e){} });
-      } else if(id==="btn-export"){
-        if(!(window._accum && window._accum.length)) return;
-        var header=["matchId","mode","queue","champion","win","k","d","a","kda","cs","timeSec","timestamp","role","items"];
-        var rows=window._accum.map(function(m){ var mch=(m.kda||'').match(/^(\d+)\/(\d+)\/(\d+)/)||[]; var k=+mch[1]||0, d=+mch[2]||0, a=+mch[3]||0; return [m.gameId,m.gameMode,m.queueType,m.champion,m.win?1:0,k,d,a,(m.kda||"").split(" ").slice(-1)[0],m.cs||0,m.time||0,m.timestamp||0,m.role||"", (m.items||[]).join("|")]; });
-        var csv=[header].concat(rows).map(function(r){ return r.map(function(x){ return '"'+String(x).replace(/"/g,'""')+'"'; }).join(","); }).join("\n");
-        var blob=new Blob([csv],{type:"text/csv;charset=utf-8"}); var url=URL.createObjectURL(blob); var a=document.createElement("a"); a.href=url; a.download="thunder_"+(currentName||"player").replace(/\W+/g,"_")+".csv"; a.click(); URL.revokeObjectURL(url);
-      } else if(id==="btn-share"){
-        var u=new URL(location.href); if(currentName) u.searchParams.set("q", currentName); u.searchParams.set("queue", currentFilter);
-        try{ if(navigator.share) navigator.share({ title:"Thunder", url:u.toString() }); else { navigator.clipboard.writeText(u.toString()); alert("링크 복사됨"); } }catch(e){}
-      } else if(id==="btn-chart-theme"){
-        CHART_THEME = CHART_THEME==="auto" ? "dark" : (CHART_THEME==="dark" ? "light" : "auto");
-        localStorage.setItem(STORAGE.chartTheme, CHART_THEME); qs("#chart-theme-code").textContent = CHART_THEME.toUpperCase();
-        applyChartDefaults(); if(window._accum) renderCharts(window._accum);
-      } else if(id==="btn-lang"){
-        LANG = (LANG==="en") ? "ko" : "en"; localStorage.setItem(STORAGE.lang, LANG); qs("#lang-code").textContent = LANG.toUpperCase();
-        if(window._raw) renderList(window._raw,currentFilter);
-      }
-    });
+  document.getElementById("btn-save-charts").addEventListener("click", function(){
+    qsa("canvas").forEach(function(cv,i){ try{ var url=cv.toDataURL("image/png"); var a=document.createElement("a"); a.href=url; a.download="thunder_chart_"+(i+1)+".png"; document.body.appendChild(a); a.click(); a.remove(); }catch(e){} });
+  });
+  document.getElementById("btn-export").addEventListener("click", function(){
+    if(!(window._accum && window._accum.length)) return;
+    var header=["matchId","mode","queue","champion","win","k","d","a","kda","cs","timeSec","timestamp","role","items"];
+    var rows=window._accum.map(function(m){ var mch=(m.kda||'').match(/^(\d+)\/(\d+)\/(\d+)/)||[]; var k=+mch[1]||0, d=+mch[2]||0, a=+mch[3]||0; return [m.gameId,m.gameMode,m.queueType,m.champion,m.win?1:0,k,d,a,(m.kda||"").split(" ").slice(-1)[0],m.cs||0,m.time||0,m.timestamp||0,m.role||"", (m.items||[]).join("|")]; });
+    var csv=[header].concat(rows).map(function(r){ return r.map(function(x){ return '"'+String(x).replace(/"/g,'""')+'"'; }).join(","); }).join("\n");
+    var blob=new Blob([csv],{type:"text/csv;charset=utf-8"}); var url=URL.createObjectURL(blob); var a=document.createElement("a"); a.href=url; a.download="thunder_"+(currentName||"player").replace(/\W+/g,"_")+".csv"; a.click(); URL.revokeObjectURL(url);
+  });
+  document.getElementById("btn-share").addEventListener("click", function(){
+    var u=new URL(location.href); if(currentName) u.searchParams.set("q", currentName); u.searchParams.set("queue", currentFilter);
+    try{ if(navigator.share) navigator.share({ title:"Thunder", url:u.toString() }); else { navigator.clipboard.writeText(u.toString()); alert("링크 복사됨"); } }catch(e){}
+  });
+  document.getElementById("btn-chart-theme").addEventListener("click", function(){
+    CHART_THEME = CHART_THEME==="auto" ? "dark" : (CHART_THEME==="dark" ? "light" : "auto");
+    localStorage.setItem(STORAGE.chartTheme, CHART_THEME); qs("#chart-theme-code").textContent = CHART_THEME.toUpperCase();
+    applyChartDefaults(); if(window._accum) renderCharts(window._accum);
+  });
+  document.getElementById("btn-lang").addEventListener("click", function(){
+    LANG = (LANG==="en") ? "ko" : "en"; localStorage.setItem(STORAGE.lang, LANG); qs("#lang-code").textContent = LANG.toUpperCase();
+    if(window._raw) renderList(window._raw,currentFilter);
   });
 
-  moreBtn.addEventListener("click", function(){
-  if(!currentName) return;
-  moreBtn.disabled = true;
-  fetchProfile(currentName, 5, currentFilter, loadedCount)
-    .then(function(data){
-      loadedCount += (data.summary || []).length;
-      if (window._accum) data.summary = [].concat(window._accum, (data.summary || []));
-      renderList(data);
-    })
-    .catch(function(err){
-      renderError(T("errLoad"), String(err && err.message ? err.message : err));
-    })
-    .then(function(){
-      // finally 대체
-      moreBtn.disabled = false;
-    });
-});
+  document.getElementById("btn-more").addEventListener("click", function(){
+    if(!currentName) return;
+    document.getElementById("btn-more").disabled = true;
+    fetchProfile(currentName, 5, currentFilter, loadedCount)
+      .then(function(data){
+        loadedCount += (data.summary || []).length;
+        if (window._accum) data.summary = [].concat(window._accum, (data.summary || []));
+        renderList(data);
+      })
+      .catch(function(err){
+        renderError(T("errLoad"), String(err && err.message ? err.message : err));
+      })
+      .then(function(){
+        document.getElementById("btn-more").disabled = false;
+      });
+  });
 
-  healthBtn.addEventListener("click", function(){
+  document.getElementById("btn-health").addEventListener("click", function(){
     healthState.textContent="확인 중…";
     fetch(API_BASE+"/health").then(function(r){ return r.text().then(function(t){ return {ok:r.ok, status:r.status, text:t}; }); })
       .then(function(p){ healthState.textContent = p.ok ? ("OK: "+p.text) : ("ERR "+p.status+": "+p.text); })
       .catch(function(e){ healthState.textContent = "요청 실패: "+(e && e.message ? e.message : e); });
   });
 
-  /* ==== Init from URL ==== */
+  /* init from URL */
   (function(){
     var p=new URL(location.href).searchParams;
     var q=p.get("q"); var queue=p.get("queue");
