@@ -5,64 +5,51 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Thunder 전적검색 · LoL Summoner Lookup</title>
 
-  <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
 
-  <!-- Tailwind (CDN) -->
   <script>
     window.tailwind = { config: { theme: {
       extend: {
-        fontFamily: {
-          sans: ["Inter","Pretendard","Noto Sans KR", "Apple SD Gothic Neo","Segoe UI", "system-ui", "sans-serif"]
-        },
-        colors: {
-          bg: "#0b1020",
-          panel: "#111827",
-          border: "#1f2937",
-          brand: { 500:"#60a5fa", 600:"#3b82f6" },
-        },
+        fontFamily: { sans: ["Inter","Pretendard","Noto Sans KR","system-ui","sans-serif"] },
+        colors: { bg:"#0b1020", panel:"#111827", border:"#1f2937", brand:{500:"#60a5fa",600:"#3b82f6"} },
         boxShadow: { soft: "0 10px 30px rgba(0,0,0,.25)" },
       }
     }}};
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Favicon -->
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' x='6' font-size='56'%3E%E2%9A%A1%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+  <!-- Chart.js for stats -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-  <!-- SEO -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' x='6' font-size='56'%3E%E2%9A%A1%EF%B8%8F%3C/text%3E%3C/svg%3E" />
   <meta name="description" content="Thunder 전적검색: Riot ID(이름#태그) 또는 소환사명으로 검색하고 최근 경기 요약과 랭크를 확인하세요." />
   <meta name="robots" content="index,follow" />
   <meta name="theme-color" content="#0b1020" />
 
   <style>
-    /* body gradient */
-    html,body { height:100% }
-    body {
+    html,body{height:100%}
+    body{
       background:
         radial-gradient(1200px 600px at 20% -10%, #1e293b 0, transparent 60%),
         radial-gradient(800px 400px at 100% 0%, #0f172a 0, transparent 60%),
         #0b1020;
     }
-    .card { @apply bg-panel/60 border border-border rounded-2xl shadow-soft; }
-    .btn { @apply inline-flex items-center justify-center font-semibold rounded-xl px-4 h-11 transition active:translate-y-px; }
-    .btn-primary { @apply bg-brand-500 hover:bg-brand-600 text-[#0b1020]; }
-    .pill { @apply px-3 py-2 rounded-full border border-border bg-white/5 text-white/90 hover:shadow; }
-    .pill-active { @apply ring-2 ring-brand-500/50 border-brand-500; }
-    .muted { @apply text-white/60; }
+    .card{@apply bg-panel/60 border border-border rounded-2xl shadow-soft}
+    .btn{@apply inline-flex items-center justify-center font-semibold rounded-xl px-4 h-11 transition active:translate-y-px}
+    .btn-primary{@apply bg-brand-500 hover:bg-brand-600 text-[#0b1020]}
+    .pill{@apply px-3 py-2 rounded-full border border-border bg-white/5 text-white/90 hover:shadow}
+    .pill-active{@apply ring-2 ring-brand-500/50 border-brand-500}
+    .muted{@apply text-white/60}
   </style>
 </head>
 <body class="text-white/95 font-sans">
   <!-- Header -->
   <header class="sticky top-0 z-50 backdrop-blur bg-slate-900/70 border-b border-white/10">
     <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-      <div class="flex items-center gap-2 text-lg font-extrabold">
-        <span>⚡</span><span data-i18n="title">Thunder 전적검색</span>
-      </div>
+      <div class="flex items-center gap-2 text-lg font-extrabold"><span>⚡</span><span data-i18n="title">Thunder 전적검색</span></div>
       <div class="flex items-center gap-2">
-        <!-- Theme -->
-        <button id="btn-theme" class="pill" title="Theme">🎨 <span class="sr-only">Theme</span></button>
-        <!-- Lang -->
+        <button id="btn-share" class="pill" title="Share">🔗</button>
+        <button id="btn-theme" class="pill" title="Theme">🎨</button>
         <button id="btn-lang" class="pill" title="Language">🌐 <span id="lang-code" class="ml-1 text-xs">KO</span></button>
       </div>
     </div>
@@ -73,7 +60,7 @@
     <!-- Search -->
     <section class="card p-5">
       <h2 class="text-lg font-semibold mb-2" data-i18n="searchTitle">소환사 검색</h2>
-      <form id="search-form" class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3" autocomplete="off">
+      <form id="search-form" class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3" autocomplete="off" role="search">
         <input id="summoner-name" class="w-full bg-[#0b1220] border border-border rounded-xl px-4 h-11 outline-none focus:ring-2 focus:ring-brand-500"
                placeholder="Hide on bush#KR1" aria-label="Summoner or Riot ID" />
         <button type="submit" class="btn btn-primary" data-i18n="searchBtn">검색</button>
@@ -98,21 +85,41 @@
       <ul id="recent-list" class="flex flex-wrap gap-2"></ul>
     </section>
 
+    <!-- Stats -->
+    <section id="stats" class="card p-5 hidden">
+      <h3 class="text-base font-semibold mb-3" data-i18n="statsTitle">요약 통계</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="p-3 border border-border rounded-xl">
+          <div class="muted mb-2" data-i18n="statWinrate">승률</div>
+          <canvas id="chart-winrate" width="360" height="180" aria-label="Winrate" role="img"></canvas>
+        </div>
+        <div class="p-3 border border-border rounded-xl">
+          <div class="muted mb-2" data-i18n="statRole">포지션 분포</div>
+          <canvas id="chart-roles" width="360" height="180" aria-label="Role distribution" role="img"></canvas>
+        </div>
+      </div>
+    </section>
+
     <!-- Result -->
     <section id="result" class="card p-5" aria-live="polite">
       <div class="muted" data-i18n="empty">위 입력창에 소환사명을 입력해 주세요.</div>
     </section>
 
-    <!-- Health -->
-    <section class="card p-4">
-      <h3 class="text-base font-semibold mb-2" data-i18n="healthTitle">연결 상태 점검</h3>
-      <div class="flex items-center gap-3 flex-wrap">
-        <button class="btn pill bg-white/10 hover:bg-white/20" id="btn-health" data-i18n="healthBtn">/health 체크</button>
-        <span id="health-state" class="muted text-sm"></span>
+    <!-- Pagination / Health -->
+    <section class="grid md:grid-cols-2 gap-4">
+      <div class="card p-4 flex items-center justify-between gap-3">
+        <div class="muted text-sm" data-i18n="moreHint">더 많은 경기를 불러옵니다.</div>
+        <button id="btn-more" class="btn pill bg-white/10 hover:bg-white/20" disabled data-i18n="moreBtn">더 보기 (+5)</button>
+      </div>
+      <div class="card p-4">
+        <h3 class="text-base font-semibold mb-2" data-i18n="healthTitle">연결 상태 점검</h3>
+        <div class="flex items-center gap-3 flex-wrap">
+          <button class="btn pill bg-white/10 hover:bg-white/20" id="btn-health" data-i18n="healthBtn">/health 체크</button>
+          <span id="health-state" class="muted text-sm"></span>
+        </div>
       </div>
     </section>
 
-    <!-- Foot -->
     <footer class="muted text-sm pt-2 pb-6">
       <div>© Thunder. Not affiliated with Riot Games. <span data-i18n="policy">플랫폼 외 결제/연락처 공유 금지(안티 포칭).</span></div>
       <div>Front: GitHub Pages · Back: <code>https://cjsend.erickparkcha.workers.dev</code></div>
