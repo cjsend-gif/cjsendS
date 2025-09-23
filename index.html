@@ -26,7 +26,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
 
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' x='6' font-size='56'%3E%E2%9A%A1%EF%B8%8F%3C/text%3E%3C/svg%3E" />
-
   <meta name="description" content="Thunder 전적검색: Riot ID(이름#태그) 또는 소환사명으로 검색하고 최근 경기 요약과 랭크, 고급 통계를 확인하세요." />
   <meta name="robots" content="index,follow" />
   <meta name="theme-color" content="#0b1020" />
@@ -45,6 +44,9 @@
     .pill{@apply px-3 py-2 rounded-full border border-border bg-white/5 text-white/90 hover:shadow}
     .pill-active{@apply ring-2 ring-brand-500/50 border-brand-500}
     .muted{@apply text-white/60}
+    table.simple{ @apply w-full text-sm; border-collapse: collapse; }
+    table.simple th, table.simple td{ @apply border border-border px-2 py-1 text-left; }
+    table.simple th{ @apply bg-white/5 }
   </style>
 </head>
 <body class="text-white/95 font-sans">
@@ -56,7 +58,8 @@
         <button id="btn-share" class="pill" title="Share">🔗</button>
         <button id="btn-export" class="pill" title="Export CSV">📄</button>
         <button id="btn-save-charts" class="pill" title="Save Charts PNG">📷</button>
-        <button id="btn-theme" class="pill" title="Theme">🎨</button>
+        <button id="btn-theme" class="pill" title="Brand Theme">🎨</button>
+        <button id="btn-chart-theme" class="pill" title="Chart Theme">🌓 <span id="chart-theme-code" class="ml-1 text-xs">AUTO</span></button>
         <button id="btn-lang" class="pill" title="Language">🌐 <span id="lang-code" class="ml-1 text-xs">KO</span></button>
       </div>
     </div>
@@ -138,18 +141,28 @@
         </div>
       </div>
 
-      <!-- 3열: 라인별 승률 추이, 챔피언 KDA 히트맵, 시간대별 승률, 아이템 빈도 -->
+      <!-- 3열: 라인추이/히트맵 -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         <div class="p-3 border border-border rounded-xl">
           <div class="muted mb-2">라인별 승률 추이</div>
           <canvas id="chart-role-trend" width="360" height="220"></canvas>
         </div>
         <div class="p-3 border border-border rounded-xl">
-          <div class="muted mb-2">챔피언 KDA 히트맵(Top 10 × 큐)</div>
+          <div class="flex items-center justify-between">
+            <div class="muted mb-2">챔피언 KDA 히트맵</div>
+            <div class="flex items-center gap-2">
+              <label class="muted text-xs">축</label>
+              <select id="heat-axes" class="bg-[#0b1220] border border-border rounded px-2 py-1 text-xs">
+                <option value="champ-queue">Champion × Queue</option>
+                <option value="queue-champ">Queue × Champion</option>
+              </select>
+            </div>
+          </div>
           <canvas id="chart-heatmap" width="360" height="220"></canvas>
         </div>
       </div>
 
+      <!-- 4열: 시간대/아이템/라인별 KDA 표/아이템 클러스터 -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         <div class="p-3 border border-border rounded-xl">
           <div class="muted mb-2">시간대별 승률(현지)</div>
@@ -158,6 +171,20 @@
         <div class="p-3 border border-border rounded-xl">
           <div class="muted mb-2">아이템 빌드 빈도(Top 12)</div>
           <div id="items-cloud" class="flex flex-wrap gap-2"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <div class="p-3 border border-border rounded-xl">
+          <div class="muted mb-2">라인별 KDA 평균</div>
+          <table id="role-kda-table" class="simple">
+            <thead><tr><th>라인</th><th>평균 KDA</th><th>게임 수</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="p-3 border border-border rounded-xl">
+          <div class="muted mb-2">아이템 빌드 클러스터</div>
+          <div id="items-clusters" class="flex flex-col gap-2"></div>
         </div>
       </div>
     </section>
