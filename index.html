@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="ko" class="scroll-smooth">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Thunder · 전적검색</title>
+
+  <!-- Tailwind: CDN JIT (간단 토큰) -->
+  <script>
+    // Tailwind CDN은 전역 tailwind.config를 읽습니다.
+    tailwind = {
+      config: {
+        theme: {
+          container: { center: true, padding: "1rem" },
+          extend: {
+            fontFamily: { sans: ["Inter","Pretendard","Noto Sans KR","system-ui","-apple-system","Segoe UI","sans-serif"] },
+            colors: {
+              ink: { DEFAULT:"#0b1220" },
+              panel: "#0d1324",
+              line: "#20283a",
+              muted: "#9aa3b2",
+              accent: { 500:"#60a5fa", 600:"#3b82f6" }
+            },
+            boxShadow: { soft: "0 10px 30px rgba(0,0,0,.18)" },
+            borderRadius: { xl: "16px", "2xl":"20px" }
+          }
+        }
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js + plugins (문서 권장 순서/버전) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2"></script>
+
+  <meta name="theme-color" content="#0b1220" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' x='6' font-size='56'%3E%E2%9A%A1%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+
+  <style>
+    :root{ --bg:#0b1220; --panel:#0d1324; --line:#20283a; --ink:#e5e7eb; --muted:#9aa3b2; --accent:#60a5fa; }
+    @media (prefers-color-scheme: light) {
+      :root{ --bg:#f6f8fb; --panel:#ffffff; --line:#e5e7eb; --ink:#0b1220; --muted:#6b7280; --accent:#3b82f6; }
+      .dark-only{ display:none!important }
+    }
+    @media (prefers-color-scheme: dark){ .light-only{ display:none!important } }
+    html,body{height:100%}
+    body{ background:var(--bg); color:var(--ink); font-size:16.5px; line-height:1.65 }
+    .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; box-shadow:0 12px 36px rgba(0,0,0,.22) }
+    .btn{ display:inline-flex; align-items:center; justify-content:center; height:44px; padding:0 16px; border-radius:12px; font-weight:600 }
+    .btn-primary{ background:var(--accent); color:#081018 }
+    .chip{ padding:8px 12px; border:1px solid var(--line); border-radius:9999px; background:transparent; cursor:pointer }
+    .chip.is-active{ outline:3px solid color-mix(in oklab, var(--accent) 35%, transparent); border-color:var(--accent) }
+    .muted{ color:var(--muted) }
+    .knum{ font-feature-settings: "tnum"; font-variant-numeric: tabular-nums }
+    table.simple{ width:100%; border-collapse:collapse; font-size:.95rem }
+    table.simple th, table.simple td{ border:1px solid var(--line); padding:.5rem .6rem; text-align:left }
+    table.simple th{ background:color-mix(in oklab, var(--ink) 4%, transparent); font-weight:600 }
+    @media (prefers-reduced-motion: reduce){ *{ animation:none!important; transition:none!important } }
+    /* JS test badge */
+    #js-test{ position:fixed; right:10px; bottom:10px; padding:6px 10px; border:1px solid #9aa3b2; border-radius:10px; background:#fff; color:#111; font:12px/1.2 system-ui; z-index:9999 }
+    @media (prefers-color-scheme: dark){ #js-test{ background:#111827; color:#e5e7eb; border-color:#374151 } }
+  </style>
+</head>
+
+<body class="font-sans">
+  <noscript><div style="margin:16px" class="card p-4">이 사이트는 자바스크립트가 필요합니다. 브라우저에서 JS를 활성화해 주세요.</div></noscript>
+
+  <!-- JS 동작 확인 배지 -->
+  <div id="js-test">JS: OFF</div>
+  <script>
+    (function(){
+      const el = document.getElementById('js-test');
+      const set = (msg)=> el && (el.textContent = msg);
+      set('JS: ON');
+      window.addEventListener('error', e => set('ERR: ' + (e?.message || 'error')));
+      window.addEventListener('unhandledrejection', e => set('REJ: ' + (e?.reason?.message || e?.reason || 'rejection')));
+      setTimeout(()=> { if (el && el.textContent.startsWith('JS: ON')) el.style.display='none'; }, 10000);
+    })();
+  </script>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-40 border-b" style="border-color:var(--line); backdrop-filter:saturate(1.2) blur(6px); background:color-mix(in oklab, var(--bg) 80%, transparent)">
+    <div class="container max-w-5xl py-3 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2 text-xl font-extrabold tracking-tight"><span>⚡</span><span>Thunder</span></div>
+      <details id="menu" class="relative">
+        <summary class="btn chip select-none">⋯ <span class="sr-only">메뉴</span></summary>
+        <div class="absolute right-0 mt-2 min-w-56 card p-2 text-sm">
+          <button id="btn-lang" class="w-full text-left px-3 py-2 rounded hover:bg-black/10 dark:hover:bg-white/10">🌐 언어 <span id="lang-code" class="ml-1 px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">KO</span></button>
+          <button id="btn-chart-theme" class="w-full text-left px-3 py-2 rounded hover:bg-black/10 dark:hover:bg-white/10">🌓 차트 테마 <span id="chart-theme-code" class="ml-1 px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">AUTO</span></button>
+          <hr class="my-2 border-t" style="border-color:var(--line)">
+          <button id="btn-export" class="w-full text-left px-3 py-2 rounded hover:bg-black/10 dark:hover:bg-white/10">📄 CSV 내보내기</button>
+          <button id="btn-save-charts" class="w-full text-left px-3 py-2 rounded hover:bg-black/10 dark:hover:bg-white/10">📷 차트 저장(PNG)</button>
+          <button id="btn-share" class="w-full text-left px-3 py-2 rounded hover:bg-black/10 dark:hover:bg-white/10">🔗 링크 복사</button>
+        </div>
+      </details>
+    </div>
+  </header>
+
+  <main class="container max-w-5xl py-6 space-y-6">
+    <!-- Search -->
+    <section class="card p-4 md:p-5">
+      <form id="search-form" class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3" role="search" autocomplete="off">
+        <label class="sr-only" for="summoner-name">소환사명 또는 Riot ID</label>
+        <input id="summoner-name" class="w-full h-12 px-4 rounded-xl border outline-none" style="border-color:var(--line); background:transparent" placeholder="예) Hide on bush#KR1" />
+        <button type="submit" class="btn btn-primary">검색</button>
+      </form>
+      <p class="muted text-sm mt-2">최근 5판 기준 간단 요약(KDA/승패/챔피언/모드/시간)을 보여주고 랭크/고급 차트는 접어서 제공합니다.</p>
+    </section>
+
+    <!-- Filter chips -->
+    <section class="card p-3 md:p-4">
+      <div id="filter-bar" class="flex flex-wrap gap-2">
+        <button class="chip is-active" data-filter="ALL">전체</button>
+        <button class="chip" data-filter="RANKED_SOLO_5x5">솔로랭크</button>
+        <button class="chip" data-filter="RANKED_FLEX_SR">자유랭크</button>
+        <button class="chip" data-filter="NORMAL">일반</button>
+        <button class="chip" data-filter="ARAM">ARAM</button>
+      </div>
+    </section>
+
+    <!-- KPI strip -->
+    <section id="strip" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="card p-4"><div class="muted text-sm">최근 승률</div><div id="kpi-winrate" class="text-3xl font-extrabold knum">–</div></div>
+      <div class="card p-4"><div class="muted text-sm">평균 KDA</div><div id="kpi-kda" class="text-3xl font-extrabold knum">–</div></div>
+      <div class="card p-4"><div class="muted text-sm">주 포지션</div><div id="kpi-role" class="text-3xl font-extrabold">–</div></div>
+    </section>
+
+    <!-- Results -->
+    <section id="result" class="card p-5" aria-live="polite">
+      <div class="muted">위 입력창에 소환사명을 입력해 주세요.</div>
+    </section>
+
+    <!-- Advanced -->
+    <details id="advanced" class="card p-4" open>
+      <summary class="cursor-pointer font-semibold">고급 통계</summary>
+      <div class="mt-4 space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="p-3 rounded-xl border" style="border-color:var(--line)"><div class="muted mb-2">승률</div><canvas id="chart-winrate" height="160"></canvas></div>
+          <div class="p-3 rounded-xl border" style="border-color:var(--line)"><div class="muted mb-2">포지션 분포</div><canvas id="chart-roles" height="160"></canvas></div>
+          <div class="p-3 rounded-xl border" style="border-color:var(--line)"><div class="muted mb-2">승률 추이</div><canvas id="chart-trend" height="160"></canvas></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="p-3 rounded-xl border" style="border-color:var(--line)">
+            <div class="flex items-center justify-between">
+              <div class="muted mb-2">챔피언 성과 Top N</div>
+              <label class="muted text-xs flex items-center gap-1">N
+                <input id="topN" type="number" min="3" max="15" value="7" class="w-16 h-8 px-2 rounded border" style="border-color:var(--line); background:transparent">
+              </label>
+            </div>
+            <canvas id="chart-champs" height="200"></canvas>
+          </div>
+          <div class="p-3 rounded-xl border" style="border-color:var(--line)"><div class="muted mb-2">KDA 분포(박스플롯)</div><canvas id="chart-kda" height="200"></canvas></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="p-3 rounded-xl border" style="border-color:var(--line)"><div class="muted mb-2">라인별 승률 추이</div><canvas id="chart-role-trend" height="200"></canvas></div>
+          <div class="p-3 rounded-xl border" style="border-color:var(--line)">
+            <div class="flex items-center justify-between">
+              <div class="muted mb-2">챔피언 KDA 히트맵</div>
+              <label class="muted text-xs flex items-center gap-2">축
+                <select id="heat-axes" class="h-8 px-2 rounded border" style="border-color:var(--line); background:transparent">
+                  <option value="champ-queue">Champion × Queue</option>
+                  <option value="queue-champ">Queue × Champion</option>
+                </select>
+              </label>
+            </div>
+            <canvas id="chart-heatmap" height="200"></canvas>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="p-3 rounded-xl border" style="border-color:var(--line)"><div class="muted mb-2">시간대별 승률(현지)</div><canvas id="chart-hourly" height="200"></canvas></div>
+          <div class="p-3 rounded-xl border" style="border-color:var(--line)"><div class="muted mb-2">아이템 빌드 빈도(Top 12)</div><div id="items-cloud" class="flex flex-wrap gap-2"></div></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="p-3 rounded-xl border" style="border-color:var(--line)">
+            <div class="muted mb-2">라인별 KDA 평균</div>
+            <table id="role-kda-table" class="simple">
+              <thead><tr><th>라인</th><th>평균 KDA</th><th>게임 수</th></tr></thead><tbody></tbody>
+            </table>
+          </div>
+          <div class="p-3 rounded-xl border" style="border-color:var(--line)"><div class="muted mb-2">아이템 빌드 클러스터</div><div id="items-clusters" class="flex flex-col gap-2"></div></div>
+        </div>
+      </div>
+    </details>
+
+    <!-- More & Health -->
+    <section class="grid md:grid-cols-2 gap-3">
+      <button id="btn-more" class="card btn w-full h-12" disabled>더 보기 (+5)</button>
+      <div class="card p-4">
+        <div class="flex items-center justify-between">
+          <span class="muted text-sm">/health</span>
+          <button id="btn-health" class="chip">체크</button>
+        </div>
+        <div id="health-state" class="mt-2 text-sm muted"></div>
+      </div>
+    </section>
+
+    <footer class="text-sm muted pt-2 pb-10">
+      Front: GitHub Pages · Back: <code>https://cjsend.erickparkcha.workers.dev</code>
+    </footer>
+  </main>
+
+  <!-- App (all-in-one) -->
+  <script>
+  /* ========= Config ========= */
+  const API_BASE = "https://cjsend.erickparkcha.workers.dev";
+  const STORAGE = { hist:"th_recent", lang:"th_lang", chartTheme:"th_chart_theme", heatAxes:"th_heat_axes" };
+  let DDRAGON_VER = "latest";
+  (async()=>{ try{ const r=await fetch("https://ddragon.leagueoflegends.com/api/versions.json"); const j=await r.json(); if(Array.isArray(j)&&j.length) DDRAGON_VER=j[0]; }catch{} })();
+
+  /* ========= i18n ========= */
+  const i18n = {
+    ko:{ searchBtn:"검색", empty:"위 입력창에 소환사명을 입력해 주세요.", errTitle:"에러", errLoad:"프로필을 불러오지 못했습니다.", cached:"최대 45초 캐시됨" },
+    en:{ searchBtn:"Search", empty:"Enter a Summoner name or Riot ID above.", errTitle:"Error", errLoad:"Failed to load profile.", cached:"Cached up to 45s" }
+  };
+  let LANG = (localStorage.getItem(STORAGE.lang) || "ko");
+  const T = (k)=> (i18n[LANG] && i18n[LANG][k]) || i18n.ko[k] || k;
+
+  /* ========= Chart theme ========= */
+  let CHART_THEME = localStorage.getItem(STORAGE.chartTheme) || "auto";
+  const mediaDark = window.matchMedia?.("(prefers-color-scheme: dark)");
+  const isDark = ()=> CHART_THEME==="dark" || (CHART_THEME==="auto" && mediaDark?.matches);
+  function chartColors(){ const dark=isDark(); return { text: dark?"#e5e7eb":"#111827", grid: dark?"rgba(255,255,255,.15)":"rgba(17,24,39,.15)", heat: dark? v=>`rgba(255,255,255,${Math.min(0.15+v/10*0.85,1)})`: v=>`rgba(0,0,0,${Math.min(0.08+v/12*0.75,0.9)})` }; }
+  function applyChartDefaults(){ const c=chartColors(); Chart.defaults.color=c.text; Chart.defaults.borderColor=c.grid; }
+  applyChartDefaults(); mediaDark?.addEventListener?.("change", ()=>{ if(CHART_THEME==="auto" && window._accum){ applyChartDefaults(); renderCharts(window._accum); } });
+  document.getElementById("chart-theme-code").textContent = CHART_THEME.toUpperCase();
+
+  /* ========= DOM ========= */
+  const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  const form=$("#search-form"), input=$("#summoner-name"), out=$("#result");
+  const stripWin=$("#kpi-winrate"), stripKDA=$("#kpi-kda"), stripRole=$("#kpi-role");
+  const filterBar=$("#filter-bar"), moreBtn=$("#btn-more"), healthBtn=$("#btn-health"), healthState=$("#health-state");
+  const topNEl=$("#topN"), heatAxesSel=$("#heat-axes");
+  $("#lang-code").textContent = (LANG||"ko").toUpperCase();
+
+  /* ========= State ========= */
+  let currentFilter="ALL", currentName="", loadedCount=0;
+  heatAxesSel.value = localStorage.getItem(STORAGE.heatAxes) || "champ-queue";
+
+  /* ========= Utils ========= */
+  const safe=(v)=>String(v??"").replace(/[&<>]/g, s=>({ "&":"&amp;","<":"&lt;",">":"&gt;" }[s]));
+  const fmtT=(sec)=>{ if(!sec) return "-:--"; const m=Math.floor(sec/60), s=String(Math.floor(sec%60)).padStart(2,"0"); return `${m}:${s}`; };
+  const timeAgo=(ms)=>{ const t=Date.now()-(ms||0); const m=Math.floor(t/60000); if(m<1) return "방금 전"; if(m<60) return `${m}분 전`; const h=Math.floor(m/60); if(h<24) return `${h}시간 전`; const d=Math.floor(h/24); return `${d}일 전`; };
+  const setChips=()=> $$("#filter-bar .chip").forEach(b=> b.classList.toggle("is-active", b.dataset.filter===currentFilter));
+  function rankLine(e){ if(!e) return `<span class="muted">언랭크</span>`; const lp=typeof e.leaguePoints==="number"?`${e.leaguePoints}LP`:""; const wr=e.wins+e.losses>0?` · ${Math.round(e.wins/(e.wins+e.losses)*100)}%`:""; const tier=String(e.tier||"").toLowerCase().replace(/^\w/,c=>c.toUpperCase()); return `<b>${tier} ${e.rank}</b> ${lp}${wr}`; }
+
+  /* ========= API ========= */
+  async function fetchProfile(name, count=5, queue="ALL", start=0){
+    const url = `${API_BASE}/profile?name=${encodeURIComponent(name)}&count=${count}&queue=${encodeURIComponent(queue)}&start=${start}`;
+    const res = await fetch(url); const json = await res.json().catch(()=> ({}));
+    if(!res.ok || json.error){ const err=typeof json.error==="string"?json.error:JSON.stringify(json.error||json); throw new Error(err||`HTTP ${res.status}`); }
+    return json;
+  }
+
+  /* ========= Items meta ========= */
+  let ITEM_DICT=null;
+  const itemIconURL = id => `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VER}/img/item/${id}.png`;
+  async function ensureItemDict(){ if(ITEM_DICT) return ITEM_DICT; const locale= LANG==="en" ? "en_US" : "ko_KR"; try{ const r=await fetch(`https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VER}/data/${locale}/item.json`); const j=await r.json(); ITEM_DICT=j?.data||{}; }catch{ ITEM_DICT={}; } return ITEM_DICT; }
+
+  /* ========= Renderers ========= */
+  let chartWin=null, chartRoles=null, chartTrend=null, chartChamps=null, chartKDA=null, chartRoleTrend=null, chartHeatmap=null, chartHourly=null;
+
+  function renderError(msg,debug=""){ out.innerHTML = `<div class="p-4 rounded-xl" style="background:color-mix(in oklab, red 10%, transparent); border:1px solid color-mix(in oklab, red 35%, transparent)"><div class="font-semibold">${T("errTitle")}</div><div class="mt-1">${safe(msg)}</div>${debug?`<pre class="mt-2 text-xs opacity-80 whitespace-pre-wrap">${safe(debug)}</pre>`:""}</div>`; moreBtn.disabled=true; }
+  function renderLoading(){ out.innerHTML = `<div class="p-4 muted">Loading…</div>`; }
+
+  function renderKPIs(items){
+    const wins=items.filter(m=>m.win).length, tot=items.length;
+    stripWin.textContent = tot ? `${Math.round(wins/tot*100)}%` : "–";
+    const kd = items.map(m=>{ const [k,d,a]=(m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(n=>+n||0); return d===0?(k+a):(k+a)/d; });
+    stripKDA.textContent = kd.length ? (kd.reduce((s,v)=>s+v,0)/kd.length).toFixed(2) : "–";
+    const roleCnt = items.reduce((m,x)=>{ const r=(x.role||"").toUpperCase(); if(!r) return m; m[r]=(m[r]||0)+1; return m; }, {});
+    const topRole = Object.entries(roleCnt).sort((a,b)=>b[1]-a[1])[0]?.[0] || "–";
+    stripRole.textContent = topRole;
+  }
+
+  async function renderItemsCloud(items){
+    const dict=await ensureItemDict(); const target=$("#items-cloud"); const freq={};
+    for(const m of items) for(const id of (m.items||[])) if(id) freq[id]=(freq[id]||0)+1;
+    const top=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,12);
+    target.innerHTML = top.length? top.map(([id,c])=>{
+      const name=dict[id]?.name||id;
+      return `<div class="chip flex items-center gap-2" title="${safe(name)} ×${c}">
+        <img src="${itemIconURL(id)}" class="w-6 h-6 rounded" alt="${safe(name)}"><span class="text-sm">${safe(String(name).slice(0,12))}</span><span class="muted text-xs">×${c}</span>
+      </div>`;
+    }).join("") : `<div class="muted text-sm">데이터 없음</div>`;
+  }
+
+  function clusterBuilds(items){
+    const builds = items.map(m => Array.from(new Set((m.items||[]).filter(Boolean))).sort((a,b)=>a-b)).filter(a=>a.length);
+    const clusters=[]; const sim=(a,b)=>{ const A=new Set(a),B=new Set(b); let inter=0; for(const x of A) if(B.has(x)) inter++; const uni=A.size+B.size-inter; return uni? inter/uni:0; };
+    for(const b of builds){ let placed=false;
+      for(const c of clusters){ if(sim(c.rep,b)>=0.5){ c.items.push(b); const f={}; for(const arr of c.items) for(const id of arr) f[id]=(f[id]||0)+1; c.rep=Object.entries(f).sort((x,y)=>y[1]-x[1]).map(([id])=>+id).slice(0,6); placed=true; break; } }
+      if(!placed) clusters.push({rep:[...b], items:[b]});
+    }
+    return clusters.sort((a,b)=>b.items.length-a.items.length);
+  }
+  async function renderItemClusters(items){
+    const dict=await ensureItemDict(); const wrap=$("#items-clusters"); const cls=clusterBuilds(items).slice(0,5);
+    wrap.innerHTML = cls.length? cls.map((c,idx)=>{
+      const rep=c.rep.map(id=>`<div class="flex items-center gap-1" title="${safe(dict[id]?.name||id)}"><img src="${itemIconURL(id)}" class="w-6 h-6 rounded"><span class="text-xs">${safe(String(dict[id]?.name||id).slice(0,10))}</span></div>`).join("");
+      return `<div class="p-2 rounded-xl border" style="border-color:var(--line)"><div class="muted text-xs mb-1">Cluster ${idx+1} · ${c.items.length} games</div><div class="flex flex-wrap gap-2">${rep}</div></div>`;
+    }).join("") : `<div class="muted text-sm">데이터 없음</div>`;
+  }
+
+  function renderRoleKDATable(items){
+    const roles = ["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"]; const tbody=$("#role-kda-table tbody");
+    const rows = roles.map(r=>{
+      const arr=items.filter(m=>(m.role||"").toUpperCase()===r);
+      const kd=arr.map(m=>{ const [k,d,a]=(m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(n=>+n||0); return d===0?(k+a):(k+a)/d; });
+      const avg= kd.length? (kd.reduce((s,v)=>s+v,0)/kd.length).toFixed(2) : "-";
+      return `<tr><td>${r}</td><td>${avg}</td><td>${arr.length}</td></tr>`;
+    }).join("");
+    tbody.innerHTML = rows;
+  }
+
+  function renderCharts(items){
+    const C=chartColors();
+    // Win/Loss
+    const wins=items.filter(m=>m.win).length, losses=items.length-wins;
+    chartWin?.destroy(); chartWin=new Chart($("#chart-winrate"), { type:"doughnut", data:{ labels:["승","패"], datasets:[{ data:[wins,losses] }] }, options:{ plugins:{legend:{ labels:{ color:C.text }}}}});
+    // Roles
+    const roles=["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"]; const counts=roles.map(r=> items.filter(x=>(x.role||"").toUpperCase()===r).length );
+    chartRoles?.destroy(); chartRoles=new Chart($("#chart-roles"),{ type:"bar", data:{ labels:roles, datasets:[{ data:counts }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
+    // Trend
+    const sorted=[...items].sort((a,b)=>(a.timestamp||0)-(b.timestamp||0)); let cum=0;
+    const lab=sorted.map(m=> new Date(m.timestamp||0).toLocaleDateString()); const dat=sorted.map((m,i)=>{ if(m.win) cum++; return Math.round(cum/(i+1)*100); });
+    chartTrend?.destroy(); chartTrend=new Chart($("#chart-trend"),{ type:"line", data:{ labels:lab, datasets:[{ data:dat }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
+    // Champs TopN
+    const N=Math.min(Math.max(parseInt(topNEl.value||"7",10),3),15); const by={}; for(const m of items){ const c=m.champion||"Unknown"; by[c]??={g:0,w:0}; by[c].g++; if(m.win) by[c].w++; }
+    const champs=Object.entries(by).sort((a,b)=>b[1].g-a[1].g).slice(0,N);
+    chartChamps?.destroy(); chartChamps=new Chart($("#chart-champs"),{ type:"bar", data:{ labels:champs.map(([c])=>c), datasets:[{ data:champs.map(([_,s])=>Math.round(s.w/s.g*100)) }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
+    // KDA boxplot (fallback histogram)
+    const kds=items.map(m=>{ const [k,d,a]=(m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(n=>+n||0); return d===0?(k+a):(k+a)/d; }).filter(Number.isFinite);
+    const bp=(arr)=>{ if(!arr.length) return {min:0,q1:0,median:0,q3:0,max:0}; const a=[...arr].sort((x,y)=>x-y), q=p=>a[Math.floor((a.length-1)*p)]; return {min:a[0],q1:q(.25),median:q(.5),q3:q(.75),max:a[a.length-1]}; };
+    try{ chartKDA?.destroy(); chartKDA=new Chart($("#chart-kda"),{ type:"boxplot", data:{ labels:["KDA"], datasets:[{ data:[bp(kds)] }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }}); }
+    catch{ const bins=[0,1,2,3,4,5,7,10], hist=new Array(bins.length-1).fill(0); kds.forEach(v=>{ for(let i=0;i<bins.length-1;i++) if(v>=bins[i] && v<bins[i+1]){ hist[i]++; break; } });
+      chartKDA?.destroy(); chartKDA=new Chart($("#chart-kda"),{ type:"bar", data:{ labels:bins.slice(0,-1).map((b,i)=>`${b}–${bins[i+1]}`), datasets:[{ data:hist }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
+    }
+    // Role trend
+    const roleSeries={}; const labels2=sorted.map(m=> new Date(m.timestamp||0).toLocaleDateString()); const R=["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"];
+    for(const r of R) roleSeries[r]={cum:0,cnt:0,ys:[]};
+    for(const m of sorted){ const r=(m.role||"").toUpperCase(); for(const rr of R){ if(rr===r){ roleSeries[rr].cnt++; if(m.win) roleSeries[rr].cum++; } roleSeries[rr].ys.push(roleSeries[rr].cnt? Math.round(roleSeries[rr].cum/roleSeries[rr].cnt*100) : null); } }
+    chartRoleTrend?.destroy(); chartRoleTrend=new Chart($("#chart-role-trend"),{ type:"line", data:{ labels:labels2, datasets:R.map(rr=>({ label:rr, data: roleSeries[rr].ys, spanGaps:true })) }, options:{ plugins:{legend:{display:true}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
+    // Heatmap (플러그인 없으면 막대/테이블로 폴백)
+    const queues=["RANKED_SOLO_5x5","RANKED_FLEX_SR","ARAM","NORMAL"];
+    const topMap={}; for(const m of items){ const c=m.champion||"Unknown"; topMap[c]=(topMap[c]||0)+1; }
+    const topChamps=Object.entries(topMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([c])=>c);
+    const kdaBy={}; for(const c of topChamps){ kdaBy[c]={}; for(const q of queues) kdaBy[c][q]=[]; }
+    for(const m of items){ const c=m.champion||"Unknown"; if(!topChamps.includes(c)) continue; const q=(m.queueType|| (m.gameMode==="CLASSIC" ? "NORMAL" : "NORMAL")); const [k,d,a]=(m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(n=>+n||0); const v=d===0?(k+a):(k+a)/d; kdaBy[c][queues.includes(q)?q:"NORMAL"].push(v); }
+    const axes=heatAxesSel.value; let xL=[],yL=[], dataMat=[];
+    if(axes==="champ-queue"){ xL=queues; yL=topChamps; topChamps.forEach((c,y)=>queues.forEach((q,x)=>{ const arr=kdaBy[c][q]; const val=arr.length? Math.round(arr.reduce((s,v)=>s+v,0)/arr.length*100)/100 : 0; dataMat.push({x,y,v:val}); })); }
+    else { xL=topChamps; yL=queues; queues.forEach((q,y)=>topChamps.forEach((c,x)=>{ const arr=kdaBy[c][q]; const val=arr.length? Math.round(arr.reduce((s,v)=>s+v,0)/arr.length*100)/100 : 0; dataMat.push({x,y,v:val}); })); }
+    const hasMatrix = !!Chart.registry.getController?.("matrix");
+    try{
+      if(!hasMatrix) throw new Error("matrix plugin not loaded");
+      chartHeatmap?.destroy(); chartHeatmap=new Chart($("#chart-heatmap"),{
+        type:"matrix",
+        data:{ datasets:[{ data:dataMat, width:({chart})=>(chart.chartArea?.width||360)/xL.length-6, height:({chart})=>(chart.chartArea?.height||200)/yL.length-6, backgroundColor: ctx => chartColors().heat(ctx.raw.v||0), borderColor:chartColors().grid, borderWidth:1 }]},
+        options:{ plugins:{legend:{display:false}, tooltip:{ callbacks:{ title:(it)=>`${yL[it[0].raw.y]} × ${xL[it[0].raw.x]}`, label:(it)=>`KDA ${it.raw.v}` } } }, scales:{ x:{ ticks:{ color:chartColors().text, callback:(v)=>xL[v] }, grid:{ display:false } }, y:{ ticks:{ color:chartColors().text, callback:(v)=>yL[v] }, grid:{ display:false } } }
+      });
+    }catch{
+      // 폴백: 챔프 × 큐 평균 KDA를 그룹 막대로 표시
+      const grp = {}; for(const d of dataMat){ const key = `${yL[d.y]}`; (grp[key]||(grp[key]=[]))[d.x] = d.v; }
+      const labels = Object.keys(grp);
+      const datasets = xL.map((x,i)=>({ label:x, data:labels.map(l=> grp[l]?.[i] ?? 0) }));
+      chartHeatmap?.destroy(); chartHeatmap=new Chart($("#chart-heatmap"),{ type:"bar", data:{ labels, datasets }, options:{ responsive:true, plugins:{legend:{display:true}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } });
+    }
+
+    // Hourly
+    const byHour=Array.from({length:24},()=>({w:0,c:0}));
+    for(const m of items){ const h=new Date(m.timestamp||0).getHours(); byHour[h].c++; if(m.win) byHour[h].w++; }
+    const wr=byHour.map(x=> x.c ? Math.round(x.w/x.c*100) : 0);
+    chartHourly?.destroy(); chartHourly=new Chart($("#chart-hourly"),{ type:"bar", data:{ labels:[...Array(24).keys()].map(h=>`${h}:00`), datasets:[{ data:wr }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
+
+    // 사이드
+    renderItemsCloud(items); renderItemClusters(items); renderRoleKDATable(items);
+  }
+
+  function renderList(data, filter=currentFilter){
+    const s=data.summoner||{}, r=data.rank||{}; let items=data.summary||[];
+    if(filter!=="ALL"){ items=items.filter(m=>{ if(filter==="RANKED_SOLO_5x5") return m.queueType==="RANKED_SOLO_5x5"; if(filter==="RANKED_FLEX_SR") return m.queueType==="RANKED_FLEX_SR"; if(filter==="NORMAL") return m.gameMode==="CLASSIC" && !m.queueType; if(filter==="ARAM") return m.gameMode==="ARAM"; return true; }); }
+    if(Array.isArray(window._accum)) items=[...window._accum, ...items];
+
+    renderKPIs(items);
+
+    const list = items.map(m=>{
+      const champ=m.champion??"-"; const icon=`https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VER}/img/champion/${champ}.png`;
+      return `<li class="flex gap-3 items-center p-3 rounded-xl border" style="border-color:var(--line)">
+        <img src="${icon}" alt="${safe(champ)}" class="w-10 h-10 rounded-lg" onerror="this.style.display='none'">
+        <div class="flex-1 min-w-0">
+          <div class="truncate"><b>${m.win?"승":"패"}</b> · ${safe(m.gameMode||"-")} · ${safe(champ)} · <span class="muted">${timeAgo(m.timestamp)}</span></div>
+          <div class="muted text-sm knum">KDA ${safe(m.kda)} · CS ${safe(m.cs??0)} · ${fmtT(m.time||0)}</div>
+        </div>
+      </li>`;
+    }).join("");
+
+    window._raw=data; window._accum=items;
+    out.innerHTML = `
+      <div class="flex items-start justify-between gap-3 mb-3">
+        <div><h2 class="text-xl font-extrabold">${safe(s.name||"-")}</h2><div class="muted text-sm">${T("cached")}</div></div>
+        <div class="grid grid-cols-2 gap-2 min-w-[240px]">
+          <div class="p-2 rounded-xl border" style="border-color:var(--line)"><div class="muted text-xs mb-1">솔로랭크</div><div class="text-sm">${rankLine(r.solo)}</div></div>
+          <div class="p-2 rounded-xl border" style="border-color:var(--line)"><div class="muted text-xs mb-1">자유랭크</div><div class="text-sm">${rankLine(r.flex)}</div></div>
+        </div>
+      </div>
+      <ul class="space-y-2">${list || `<li class="muted">${T("empty")}</li>`}</ul>
+    `;
+
+    renderCharts(items);
+    moreBtn.disabled=false;
+  }
+
+  /* ========= Events ========= */
+  form.addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    const name=(input.value||"").trim(); if(!name) return;
+    currentName=name; loadedCount=0; window._accum=[]; renderLoading();
+    try{ const data=await fetchProfile(name,5,currentFilter,0); loadedCount+=(data.summary||[]).length; renderList(data); }
+    catch(err){ renderError(T("errLoad"), String(err?.message||err)); }
+  });
+
+  filterBar.addEventListener("click",(e)=>{ const b=e.target.closest("[data-filter]"); if(!b) return; currentFilter=b.dataset.filter; setChips(); if(window._raw) renderList(window._raw,currentFilter); });
+
+  topNEl.addEventListener("change", ()=>{ if(window._accum?.length) renderCharts(window._accum); });
+  heatAxesSel.addEventListener("change", ()=>{ localStorage.setItem(STORAGE.heatAxes, heatAxesSel.value); if(window._accum) renderCharts(window._accum); });
+
+  moreBtn.addEventListener("click", async ()=>{
+    if(!currentName) return; moreBtn.disabled=true;
+    try{ const data=await fetchProfile(currentName,5,currentFilter,loadedCount); loadedCount+=(data.summary||[]).length; if(window._accum) data.summary=[...window._accum, ...(data.summary||[])]; renderList(data); }
+    catch(err){ renderError(T("errLoad"), String(err?.message||err)); }
+    finally{ moreBtn.disabled=false; }
+  });
+
+  healthBtn.addEventListener("click", async ()=>{
+    healthState.textContent="확인 중…";
+    try{ const r=await fetch(`${API_BASE}/health`); const t=await r.text(); healthState.textContent= r.ok? `OK: ${t}` : `ERR ${r.status}: ${t}`; }
+    catch(e){ healthState.textContent = "요청 실패: "+(e?.message||e); }
+  });
+
+  // menu actions
+  document.getElementById("btn-save-charts").addEventListener("click", ()=>{
+    (document.querySelectorAll("canvas")||[]).forEach((cv,i)=>{ try{ const url=cv.toDataURL("image/png"); const a=document.createElement("a"); a.href=url; a.download=`thunder_chart_${i+1}.png`; document.body.appendChild(a); a.click(); a.remove(); }catch{} });
+  });
+  document.getElementById("btn-export").addEventListener("click", ()=>{
+    if(!window._accum?.length) return;
+    const header=["matchId","mode","queue","champion","win","k","d","a","kda","cs","timeSec","timestamp","role","items"];
+    const rows=window._accum.map(m=>{ const [k,d,a]=(m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4); return [m.gameId,m.gameMode,m.queueType,m.champion,m.win?1:0,k||0,d||0,a||0,(m.kda||"").split(" ").slice(-1)[0],m.cs||0,m.time||0,m.timestamp||0,m.role||"", (m.items||[]).join("|")]; });
+    const csv=[header,...rows].map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`thunder_${(currentName||"player").replace(/\W+/g,"_")}.csv`; a.click(); URL.revokeObjectURL(url);
+  });
+  document.getElementById("btn-share").addEventListener("click", async ()=>{
+    const u=new URL(location.href); if(currentName) u.searchParams.set("q", currentName); u.searchParams.set("queue", currentFilter);
+    try{ if(navigator.share) await navigator.share({ title:"Thunder", url:u.toString() }); else { await navigator.clipboard.writeText(u.toString()); alert("링크 복사됨"); } }catch{}
+  });
+  document.getElementById("btn-chart-theme").addEventListener("click", ()=>{
+    CHART_THEME = CHART_THEME==="auto" ? "dark" : CHART_THEME==="dark" ? "light" : "auto";
+    localStorage.setItem(STORAGE.chartTheme, CHART_THEME); document.getElementById("chart-theme-code").textContent = CHART_THEME.toUpperCase();
+    applyChartDefaults(); if(window._accum) renderCharts(window._accum);
+  });
+  document.getElementById("btn-lang").addEventListener("click", ()=>{
+    LANG = LANG==="en" ? "ko" : "en"; localStorage.setItem(STORAGE.lang, LANG); document.getElementById("lang-code").textContent = LANG.toUpperCase();
+    if(window._raw) renderList(window._raw,currentFilter);
+  });
+
+  /* ========= Init from URL ========= */
+  (function initFromURL(){
+    const p=new URL(location.href).searchParams;
+    const q=p.get("q"); const queue=p.get("queue");
+    if(queue){ currentFilter=queue.toUpperCase(); setChips(); }
+    if(q){ input.value=q; form.requestSubmit?.() || form.dispatchEvent(new Event("submit")); } else { setChips(); }
+  })();
+  </script>
+</body>
+</html>
