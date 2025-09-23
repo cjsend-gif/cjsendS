@@ -1,4 +1,4 @@
-/* assets/app.js — advanced charts + compare + export + pagination + deep link + i18n + theme */
+/* assets/app.js — full advanced: charts+heatmap+role trend+hourly+items+compare+export+pagination+i18n+theme */
 const API_BASE = "https://cjsend.erickparkcha.workers.dev";
 const STORAGE = { hist:"thunder_recent_searches", lang:"thunder_lang", theme:"thunder_theme" };
 const MAX_HISTORY = 8;
@@ -8,7 +8,7 @@ let DDRAGON_VER = "latest";
 
 // i18n
 const i18n = {
-  ko:{ title:"Thunder 전적검색", searchTitle:"소환사 검색", searchBtn:"검색", searchHint:"최근 5판 기반 KDA/승패/챔프/모드/시간과 랭크 정보를 제공합니다.",
+  ko:{ title:"Thunder 전적검색", searchTitle:"소환사 검색", searchBtn:"검색", searchHint:"최근 5판 기반 KDA/승패/챔피언/모드/시간과 랭크 정보를 제공합니다.",
       fAll:"전체", fSolo:"솔로랭크", fFlex:"자유랭크", fNormal:"일반", fAram:"ARAM", recent:"최근 검색", empty:"위 입력창에 소환사명을 입력해 주세요.",
       healthTitle:"연결 상태 점검", healthBtn:"/health 체크", level:(n)=>`레벨 ${n}`, solo:"솔로랭크", flex:"자유랭크", unranked:"언랭크",
       cached:"결과는 최대 45초 캐시됨", coachCta:"코칭 문의", policy:"플랫폼 외 결제/연락처 공유 금지(안티 포칭).",
@@ -52,8 +52,9 @@ const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.quer
 const form=$("#search-form"), input=$("#summoner-name"), out=$("#result"), filterBar=$("#filter-bar");
 const recentWrap=$("#recent-wrap"), recentList=$("#recent-list");
 const statsSec=$("#stats"), moreBtn=$("#btn-more"), topNEl=$("#topN");
-const btnShare=$("#btn-share"), btnExport=$("#btn-export");
+const btnShare=$("#btn-share"), btnExport=$("#btn-export"), btnSaveCharts=$("#btn-save-charts");
 const compareInput=$("#compare-name"), btnCompare=$("#btn-compare");
+const itemsCloud=$("#items-cloud");
 
 // Helpers
 const safe=(v)=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -71,7 +72,7 @@ function renderHistory(){ const arr=getHistory(); if(!arr.length){ recentWrap.cl
 // Filters
 let currentFilter = new URL(location.href).searchParams.get("queue")?.toUpperCase() || "ALL";
 function setFilterUI(){ $$("#filter-bar .pill").forEach(b=>b.classList.toggle("pill-active", b.dataset.filter===currentFilter)); }
-filterBar?.addEventListener("click", (e)=>{ const b=e.target.closest("[data-filter]"); if(!b) return; currentFilter=b.dataset.filter; setFilterUI(); if(out._raw) renderProfile(out._raw,{filter:currentFilter}); syncURL(); });
+filterBar?.addEventListener("click", (e)=>{ const b=e.target.closest("[data-filter]"); if(!b) return; currentFilter=b.dataset.filter; setFilterUI(); if(out._accum) renderProfile(out._raw,{filter:currentFilter}); syncURL(); });
 
 // API
 let currentName = "";
@@ -83,16 +84,27 @@ async function fetchProfile(name, count=5, queue="ALL", start=0){
   return json;
 }
 
+// Items dictionary (for names/icons)
+let ITEM_DICT = null;
+async function ensureItemDict(){
+  if (ITEM_DICT) return ITEM_DICT;
+  const locale = LANG==="en" ? "en_US" : "ko_KR";
+  try{
+    const r = await fetch(`https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VER}/data/${locale}/item.json`);
+    const j = await r.json();
+    ITEM_DICT = j?.data || {};
+  }catch{ ITEM_DICT = {}; }
+  return ITEM_DICT;
+}
+
 // Charts
-let chartWin=null, chartRoles=null, chartTrend=null, chartChamps=null, chartKDA=null;
+let chartWin=null, chartRoles=null, chartTrend=null, chartChamps=null, chartKDA=null, chartRoleTrend=null, chartHeatmap=null, chartHourly=null;
 function renderCharts(items){
   if(!items?.length){ statsSec.classList.add("hidden"); return; }
   statsSec.classList.remove("hidden");
 
-  // win/loss
+  // ------- Winrate doughnut -------
   const wins = items.filter(m=>m.win).length, losses = items.length - wins;
-
-  // Winrate doughnut
   chartWin?.destroy();
   chartWin = new Chart(document.getElementById("chart-winrate"), {
     type: "doughnut",
@@ -100,7 +112,7 @@ function renderCharts(items){
     options: { plugins:{ legend:{ labels:{ color:"#e5e7eb" } } } }
   });
 
-  // Roles bar
+  // ------- Role distribution -------
   const roles = ["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"];
   const counts = roles.map(r=> items.filter(x=>(x.role||"").toUpperCase()===r).length );
   chartRoles?.destroy();
@@ -110,10 +122,10 @@ function renderCharts(items){
     options: { scales:{ x:{ ticks:{ color:"#e5e7eb"} }, y:{ ticks:{ color:"#e5e7eb"} } }, plugins:{ legend:{ display:false } } }
   });
 
-  // Winrate trend (time order)
+  // ------- Winrate trend (cumulative) -------
   const sorted = [...items].sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
   let cumW=0;
-  const trendLabels = sorted.map((m,i)=> new Date(m.timestamp||0).toLocaleDateString());
+  const trendLabels = sorted.map((m)=> new Date(m.timestamp||0).toLocaleDateString());
   const trendData = sorted.map((m,i)=> { if(m.win) cumW++; return Math.round((cumW/ (i+1))*100); });
   chartTrend?.destroy();
   chartTrend = new Chart(document.getElementById("chart-trend"), {
@@ -122,7 +134,7 @@ function renderCharts(items){
     options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:"#e5e7eb"} }, y:{ ticks:{ color:"#e5e7eb"} } } }
   });
 
-  // Champion performance Top N (by games desc → winrate bar)
+  // ------- TopN champs by WR -------
   const topN = Math.min(Math.max(parseInt(document.getElementById("topN")?.value || "7", 10), 3), 15);
   const byChamp = {};
   for (const m of items){
@@ -140,25 +152,123 @@ function renderCharts(items){
     options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:"#e5e7eb"} }, y:{ ticks:{ color:"#e5e7eb"} } } }
   });
 
-  // KDA distribution boxplot (K+A)/max(1,D)
+  // ------- KDA boxplot -------
   const kdas = items.map(m=>{
     const [k,d,a] = (m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(x=>parseInt(x||"0",10));
-    const val = d===0 ? (k+a) : (k+a)/d;
-    return Number.isFinite(val)? val : 0;
+    const v = d===0 ? (k+a) : (k+a)/d; return Number.isFinite(v)? v : 0;
   }).filter(x=>x>=0);
-  const stats = boxStats(kdas);
+  const bp = (arr)=>{ if(!arr.length) return {min:0,q1:0,median:0,q3:0,max:0}; const a=[...arr].sort((x,y)=>x-y); const q=p=>a[Math.floor((a.length-1)*p)]; return {min:a[0],q1:q(0.25),median:q(0.5),q3:q(0.75),max:a[a.length-1] }; }
   chartKDA?.destroy();
   chartKDA = new Chart(document.getElementById("chart-kda"), {
     type: "boxplot",
-    data: { labels:["KDA"], datasets:[{ data:[stats] }] },
+    data: { labels:["KDA"], datasets:[{ data:[bp(kdas)] }] },
     options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:"#e5e7eb"} }, y:{ ticks:{ color:"#e5e7eb"} } } }
   });
+
+  // ------- Role-wise winrate trend -------
+  const roleSeries = {};
+  const timeLabels = sorted.map(m=> new Date(m.timestamp||0).toLocaleDateString());
+  for (const r of roles) roleSeries[r] = { cum:0, cnt:0, ys:[] };
+  for (const m of sorted){
+    const r = (m.role||"").toUpperCase();
+    for (const R of roles){
+      if (R===r) { roleSeries[R].cnt++; if(m.win) roleSeries[R].cum++; }
+      roleSeries[R].ys.push(roleSeries[R].cnt? Math.round((roleSeries[R].cum/roleSeries[R].cnt)*100) : null);
+    }
+  }
+  chartRoleTrend?.destroy();
+  chartRoleTrend = new Chart(document.getElementById("chart-role-trend"), {
+    type: "line",
+    data: { labels: timeLabels, datasets: roles.map((R,i)=>({ label:R, data: roleSeries[R].ys, spanGaps:true })) },
+    options: { scales:{ x:{ ticks:{ color:"#e5e7eb"} }, y:{ ticks:{ color:"#e5e7eb"} } } }
+  });
+
+  // ------- Champion KDA heatmap (Top10 × Queue) -------
+  const top10 = Object.entries(byChamp).sort((a,b)=> b[1].games - a[1].games).slice(0, 10).map(([c])=>c);
+  const queues = ["RANKED_SOLO_5x5","RANKED_FLEX_SR","ARAM","NORMAL"];
+  const kdaBy = {}; // kda avg per champ & queue
+  for (const c of top10) { kdaBy[c]={}; for (const q of queues) kdaBy[c][q]=[]; }
+  for (const m of items){
+    const c=m.champion||"Unknown";
+    if(!top10.includes(c)) continue;
+    const q = (m.queueType|| (m.gameMode==="CLASSIC" ? "NORMAL":"")).replace("","NORMAL");
+    const [k,d,a] = (m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(x=>parseInt(x||"0",10));
+    const v = d===0 ? (k+a) : (k+a)/d;
+    const key = queues.includes(q)? q : (m.gameMode==="CLASSIC" ? "NORMAL" : "NORMAL");
+    kdaBy[c][key].push(v);
+  }
+  const dataMatrix = [];
+  top10.forEach((c, yIdx)=>{
+    queues.forEach((q, xIdx)=>{
+      const arr = kdaBy[c][q];
+      const val = arr.length ? (arr.reduce((s,v)=>s+v,0)/arr.length) : 0;
+      dataMatrix.push({ x:xIdx, y:yIdx, v: Math.round(val*100)/100 });
+    });
+  });
+  chartHeatmap?.destroy();
+  chartHeatmap = new Chart(document.getElementById("chart-heatmap"), {
+    type: "matrix",
+    data: {
+      datasets: [{
+        data: dataMatrix,
+        width: ({chart}) => (chart.chartArea?.width||360)/queues.length - 6,
+        height: ({chart}) => (chart.chartArea?.height||220)/top10.length - 6,
+        backgroundColor: ctx => {
+          const v=ctx.raw.v||0; // 밝기 → 값
+          const alpha = Math.min(0.15 + v/10 * 0.85, 1);
+          return `rgba(255,255,255,${alpha})`;
+        },
+        borderColor: "rgba(229,231,235,.15)",
+        borderWidth: 1,
+      }]
+    },
+    options: {
+      plugins: { legend: { display:false }, tooltip: { callbacks:{ title:(it)=>`${top10[it[0].raw.y]} × ${queues[it[0].raw.x]}`, label:(it)=>`KDA ${it.raw.v}` } } },
+      scales: {
+        x: { ticks:{ color:"#e5e7eb", callback:(v)=>queues[v] }, grid:{ display:false } },
+        y: { ticks:{ color:"#e5e7eb", callback:(v)=>top10[v] }, grid:{ display:false } }
+      }
+    }
+  });
+
+  // ------- Hourly winrate -------
+  const byHour = Array.from({length:24}, ()=>({w:0,c:0}));
+  for (const m of items){
+    const d = new Date(m.timestamp||0);
+    const hour = d.getHours(); // 사용자의 브라우저 로컬 시간대
+    byHour[hour].c++; if(m.win) byHour[hour].w++;
+  }
+  const wrByHour = byHour.map(x=> x.c ? Math.round((x.w/x.c)*100) : 0);
+  chartHourly?.destroy();
+  chartHourly = new Chart(document.getElementById("chart-hourly"), {
+    type: "bar",
+    data: { labels: [...Array(24).keys()].map(h=>`${h}:00`), datasets:[{ data: wrByHour }] },
+    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:"#e5e7eb"} }, y:{ ticks:{ color:"#e5e7eb"} } } }
+  });
+
+  // ------- Items cloud (Top 12 by freq) -------
+  renderItemsCloud(items);
 }
-function boxStats(arr){
-  if(!arr.length) return {min:0,q1:0,median:0,q3:0,max:0};
-  const a=[...arr].sort((x,y)=>x-y);
-  const q = p => a[Math.floor((a.length-1)*p)];
-  return { min:a[0], q1:q(0.25), median:q(0.5), q3:q(0.75), max:a[a.length-1] };
+
+function itemIconURL(id){ return `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VER}/img/item/${id}.png`; }
+async function renderItemsCloud(items){
+  itemsCloud.innerHTML = "";
+  const dict = await ensureItemDict();
+  const freq = {};
+  for (const m of items) {
+    for (const id of (m.items||[])) { if(!id) continue; freq[id]=(freq[id]||0)+1; }
+  }
+  const top = Object.entries(freq).sort((a,b)=> b[1]-a[1]).slice(0, 12);
+  if (!top.length) { itemsCloud.innerHTML = `<div class="muted text-sm">데이터 없음</div>`; return; }
+  itemsCloud.innerHTML = top.map(([id,c])=>{
+    const meta = dict[id] || {};
+    const name = meta.name || id;
+    const tip = name.replace(/"/g,'&quot;');
+    return `<div class="flex items-center gap-2 border border-border rounded-xl px-2 py-1 bg-black/30" title="${tip} ×${c}">
+      <img src="${itemIconURL(id)}" alt="${safe(name)}" class="w-8 h-8 rounded" />
+      <div class="text-sm">${safe(name)} <span class="muted">×${c}</span></div>
+    </div>`;
+  }).join("");
 }
 
 // Render
@@ -217,14 +327,14 @@ function renderProfile(data, opts={}){
   moreBtn.disabled = false;
 }
 
-// CSV & PNG export
+// CSV export
 function toCSV(items){
-  const header = ["matchId","mode","queue","champion","win","k","d","a","kda","cs","timeSec","timestamp","role"];
+  const header = ["matchId","mode","queue","champion","win","k","d","a","kda","cs","timeSec","timestamp","role","items"];
   const rows = items.map(m=>{
     const [k,d,a] = (m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4);
     return [
       m.gameId, m.gameMode, m.queueType, m.champion, m.win ? 1:0,
-      k||0, d||0, a||0, (m.kda||"").split(" ").slice(-1)[0], m.cs||0, m.time||0, m.timestamp||0, m.role||""
+      k||0, d||0, a||0, (m.kda||"").split(" ").slice(-1)[0], m.cs||0, m.time||0, m.timestamp||0, m.role||"", (m.items||[]).join("|")
     ].map(v=>String(v).replace(/"/g,'""'));
   });
   return [header, ...rows].map(r=>r.map(x=>`"${x}"`).join(",")).join("\n");
@@ -234,10 +344,18 @@ function download(filename, content, mime="text/plain"){
   const a=document.createElement("a"); a.href=url; a.download=filename; document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
 }
-btnExport?.addEventListener("click", ()=>{
-  if(!out._accum?.length) return;
-  const csv = toCSV(out._accum);
-  download(`thunder_${(currentName||"player").replace(/\W+/g,"_")}.csv`, csv, "text/csv;charset=utf-8");
+
+// Save charts PNG (모든 canvas)
+btnSaveCharts?.addEventListener("click", ()=>{
+  const canvases = statsSec?.querySelectorAll("canvas") || [];
+  let idx=1;
+  canvases.forEach(cv=>{
+    try{
+      const url=cv.toDataURL("image/png");
+      const a=document.createElement("a"); a.href=url; a.download=`thunder_chart_${idx++}.png`;
+      document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),0);
+    }catch{}
+  });
 });
 
 // Share / deeplink
@@ -260,8 +378,15 @@ $("#btn-share")?.addEventListener("click", async ()=>{
   }catch{}
 });
 
+// Export CSV
+$("#btn-export")?.addEventListener("click", ()=>{
+  if(!out._accum?.length) return;
+  const csv = toCSV(out._accum);
+  download(`thunder_${(currentName||"player").replace(/\W+/g,"_")}.csv`, csv, "text/csv;charset=utf-8");
+});
+
 // Events
-function setFilterAndRender(){ setFilterUI(); if(out._raw) renderProfile(out._raw,{filter:currentFilter}); }
+function setFilterAndRender(){ setFilterUI(); if(out._accum) renderProfile(out._raw,{filter:currentFilter}); }
 form?.addEventListener("submit", async (e)=>{
   e.preventDefault();
   const name=(input?.value||"").trim();
@@ -314,15 +439,14 @@ $("#btn-theme")?.addEventListener("click", ()=>{
   localStorage.setItem(STORAGE.theme, THEME); applyTheme(); syncURL();
 });
 
-// Compare mode
-btnCompare?.addEventListener("click", async ()=>{
+// Compare mode (간단 비교)
+$("#btn-compare")?.addEventListener("click", async ()=>{
   const nameA=(input?.value||"").trim();
   const nameB=(compareInput?.value||"").trim();
   if(!nameA || !nameB) return alert(LANG==="en"?"Enter both names":"두 소환사를 모두 입력하세요");
   try{
     withRing(true); renderLoading();
     const [A,B] = await Promise.all([fetchProfile(nameA, 10, "ALL", 0), fetchProfile(nameB, 10, "ALL", 0)]);
-    // 간단 비교: 최근 10판 승률, 평균 KDA
     const cmp = (data)=>{
       const items=data.summary||[];
       const wins = items.filter(m=>m.win).length;
