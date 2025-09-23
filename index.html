@@ -1,146 +1,124 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" class="scroll-smooth">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Thunder 전적검색 · LoL Summoner Lookup</title>
 
-  <!-- 기본 SEO -->
-  <meta name="description" content="Thunder 전적검색: 소환사 검색 → 최근 경기 요약(KDA/승패/챔프/모드/시간)을 빠르게 확인하세요." />
-  <meta name="theme-color" content="#111827" />
-  <meta name="robots" content="index,follow" />
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
 
-  <!-- Open Graph / Twitter -->
-  <meta property="og:title" content="Thunder 전적검색" />
-  <meta property="og:description" content="소환사 검색 → 최근 경기 요약을 한 번에." />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://cjsend-gif.github.io/cjsendS/" />
-  <meta property="og:image" content="https://cjsend-gif.github.io/cjsendS/assets/og-image.png" />
-  <meta name="twitter:card" content="summary_large_image" />
-
-  <!-- 간단 스타일 (Tailwind 없이 가벼운 CSS) -->
-  <style>
-    :root {
-      --bg: #0b1020;
-      --panel: #111827;
-      --muted: #9ca3af;
-      --text: #e5e7eb;
-      --accent: #60a5fa;
-      --accent-2: #93c5fd;
-      --border: #1f2937;
-    }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
-      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Apple SD Gothic Neo, "맑은 고딕", sans-serif;
-      background: radial-gradient(1200px 600px at 20% -10%, #1e293b 0, transparent 60%),
-                  radial-gradient(800px 400px at 100% 0%, #0f172a 0, transparent 60%),
-                  var(--bg);
-      color: var(--text);
-    }
-    .container { max-width: 960px; margin: 0 auto; padding: 24px; }
-    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
-    .logo { font-weight: 800; letter-spacing: .3px; font-size: clamp(18px, 3vw, 24px); }
-    .muted { color: var(--muted); }
-    .card {
-      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02));
-      border: 1px solid var(--border);
-      border-radius: 14px; padding: 18px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.25);
-    }
-    .search {
-      display: grid; grid-template-columns: 1fr auto; gap: 10px;
-      margin: 12px 0 18px;
-    }
-    .input {
-      width: 100%;
-      background: #0b1220; color: var(--text);
-      border: 1px solid var(--border); border-radius: 10px;
-      padding: 14px 14px; outline: none; font-size: 16px;
-    }
-    .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(96,165,250,.25); }
-    .btn {
-      appearance: none; cursor: pointer; user-select: none;
-      padding: 0 18px; min-width: 96px; border: 0; border-radius: 10px; font-weight: 700;
-      color: #0b1020; background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    }
-    .btn:active { transform: translateY(1px); }
-    .grid { display: grid; gap: 14px; }
-    footer { margin-top: 32px; color: var(--muted); font-size: 13px; }
-    a { color: #a5b4fc; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-  </style>
-
-  <!-- 구조화데이터(선택) -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebApplication",
-    "name": "Thunder 전적검색",
-    "url": "https://cjsend-gif.github.io/cjsendS/",
-    "applicationCategory": "Game",
-    "operatingSystem": "Web",
-    "description": "소환사 검색과 최근 경기 요약 제공"
-  }
+  <!-- Tailwind (CDN) -->
+  <script>
+    window.tailwind = { config: { theme: {
+      extend: {
+        fontFamily: {
+          sans: ["Inter","Pretendard","Noto Sans KR", "Apple SD Gothic Neo","Segoe UI", "system-ui", "sans-serif"]
+        },
+        colors: {
+          bg: "#0b1020",
+          panel: "#111827",
+          border: "#1f2937",
+          brand: { 500:"#60a5fa", 600:"#3b82f6" },
+        },
+        boxShadow: { soft: "0 10px 30px rgba(0,0,0,.25)" },
+      }
+    }}};
   </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' x='6' font-size='56'%3E%E2%9A%A1%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+
+  <!-- SEO -->
+  <meta name="description" content="Thunder 전적검색: Riot ID(이름#태그) 또는 소환사명으로 검색하고 최근 경기 요약과 랭크를 확인하세요." />
+  <meta name="robots" content="index,follow" />
+  <meta name="theme-color" content="#0b1020" />
+
+  <style>
+    /* body gradient */
+    html,body { height:100% }
+    body {
+      background:
+        radial-gradient(1200px 600px at 20% -10%, #1e293b 0, transparent 60%),
+        radial-gradient(800px 400px at 100% 0%, #0f172a 0, transparent 60%),
+        #0b1020;
+    }
+    .card { @apply bg-panel/60 border border-border rounded-2xl shadow-soft; }
+    .btn { @apply inline-flex items-center justify-center font-semibold rounded-xl px-4 h-11 transition active:translate-y-px; }
+    .btn-primary { @apply bg-brand-500 hover:bg-brand-600 text-[#0b1020]; }
+    .pill { @apply px-3 py-2 rounded-full border border-border bg-white/5 text-white/90 hover:shadow; }
+    .pill-active { @apply ring-2 ring-brand-500/50 border-brand-500; }
+    .muted { @apply text-white/60; }
+  </style>
 </head>
-<body>
-  <div class="container">
-    <header>
-      <div class="logo">⚡ Thunder 전적검색</div>
-      <div class="muted">KR · Riot API 프록시(Cloudflare Workers)</div>
-    </header>
+<body class="text-white/95 font-sans">
+  <!-- Header -->
+  <header class="sticky top-0 z-50 backdrop-blur bg-slate-900/70 border-b border-white/10">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2 text-lg font-extrabold">
+        <span>⚡</span><span data-i18n="title">Thunder 전적검색</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <!-- Theme -->
+        <button id="btn-theme" class="pill" title="Theme">🎨 <span class="sr-only">Theme</span></button>
+        <!-- Lang -->
+        <button id="btn-lang" class="pill" title="Language">🌐 <span id="lang-code" class="ml-1 text-xs">KO</span></button>
+      </div>
+    </div>
+  </header>
 
-    <main class="grid">
-      <!-- 검색 카드 -->
-      <section class="card">
-        <h2 style="margin:0 0 8px 0; font-size: 18px;">소환사 검색</h2>
-        <form id="search-form" class="search" autocomplete="off">
-          <label class="sr-only" for="summoner-name">소환사명</label>
-          <input id="summoner-name" class="input" placeholder="예) Hide on bush" />
-          <button type="submit" class="btn">검색</button>
-        </form>
-        <p class="muted" style="margin:0;">최근 5판 기준 간단 요약(KDA/승패/챔프/모드/시간)을 보여줍니다.</p>
-      </section>
+  <!-- Main -->
+  <main class="max-w-5xl mx-auto p-4 space-y-4">
+    <!-- Search -->
+    <section class="card p-5">
+      <h2 class="text-lg font-semibold mb-2" data-i18n="searchTitle">소환사 검색</h2>
+      <form id="search-form" class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3" autocomplete="off">
+        <input id="summoner-name" class="w-full bg-[#0b1220] border border-border rounded-xl px-4 h-11 outline-none focus:ring-2 focus:ring-brand-500"
+               placeholder="Hide on bush#KR1" aria-label="Summoner or Riot ID" />
+        <button type="submit" class="btn btn-primary" data-i18n="searchBtn">검색</button>
+      </form>
+      <p class="muted mt-2 text-sm" data-i18n="searchHint">최근 5판 기반 KDA/승패/챔프/모드/시간과 랭크 정보를 제공합니다.</p>
+    </section>
 
-      <!-- 결과 카드 -->
-      <section id="result" class="card" aria-live="polite">
-        <div class="muted">위 입력창에 소환사명을 입력해 주세요.</div>
-      </section>
+    <!-- Filters -->
+    <section class="card p-4">
+      <div id="filter-bar" class="flex flex-wrap gap-2">
+        <button type="button" class="pill pill-active" data-filter="ALL" data-i18n="fAll">전체</button>
+        <button type="button" class="pill" data-filter="RANKED_SOLO_5x5" data-i18n="fSolo">솔로랭크</button>
+        <button type="button" class="pill" data-filter="RANKED_FLEX_SR" data-i18n="fFlex">자유랭크</button>
+        <button type="button" class="pill" data-filter="NORMAL" data-i18n="fNormal">일반</button>
+        <button type="button" class="pill" data-filter="ARAM" data-i18n="fAram">ARAM</button>
+      </div>
+    </section>
 
-      <!-- 헬스체크(문제 발생 시 빠른 진단용, 원치 않으면 이 카드 삭제) -->
-      <section class="card">
-        <h3 style="margin:0 0 10px 0; font-size:16px;">연결 상태 점검</h3>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <button class="btn" id="btn-health">/health 체크</button>
-          <span id="health-state" class="muted"></span>
-        </div>
-      </section>
-    </main>
+    <!-- Recent -->
+    <section id="recent-wrap" class="card p-4 hidden">
+      <h3 class="text-base font-semibold mb-2" data-i18n="recent">최근 검색</h3>
+      <ul id="recent-list" class="flex flex-wrap gap-2"></ul>
+    </section>
 
-    <footer>
-      <div>© Thunder. Not affiliated with Riot Games. Riot API 사용 한도에 따라 지연될 수 있습니다.</div>
+    <!-- Result -->
+    <section id="result" class="card p-5" aria-live="polite">
+      <div class="muted" data-i18n="empty">위 입력창에 소환사명을 입력해 주세요.</div>
+    </section>
+
+    <!-- Health -->
+    <section class="card p-4">
+      <h3 class="text-base font-semibold mb-2" data-i18n="healthTitle">연결 상태 점검</h3>
+      <div class="flex items-center gap-3 flex-wrap">
+        <button class="btn pill bg-white/10 hover:bg-white/20" id="btn-health" data-i18n="healthBtn">/health 체크</button>
+        <span id="health-state" class="muted text-sm"></span>
+      </div>
+    </section>
+
+    <!-- Foot -->
+    <footer class="muted text-sm pt-2 pb-6">
+      <div>© Thunder. Not affiliated with Riot Games. <span data-i18n="policy">플랫폼 외 결제/연락처 공유 금지(안티 포칭).</span></div>
       <div>Front: GitHub Pages · Back: <code>https://cjsend.erickparkcha.workers.dev</code></div>
     </footer>
-  </div>
+  </main>
 
-  <!-- 필수 스크립트 -->
   <script defer src="./assets/app.js"></script>
-  <script>
-    // /health 빠른 체크 버튼 (에러 시 원인 파악 도움)
-    document.getElementById('btn-health')?.addEventListener('click', async () => {
-      const el = document.getElementById('health-state');
-      el.textContent = '확인 중…';
-      try {
-        const res = await fetch('https://cjsend.erickparkcha.workers.dev/health');
-        const txt = await res.text();
-        el.textContent = res.ok ? `OK: ${txt}` : `ERR ${res.status}: ${txt}`;
-      } catch (e) {
-        el.textContent = '요청 실패: ' + (e?.message || e);
-      }
-    });
-  </script>
-
-  <noscript>이 사이트는 JavaScript가 필요합니다. 브라우저 설정에서 JavaScript를 켜 주세요.</noscript>
 </body>
 </html>
