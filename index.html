@@ -466,55 +466,115 @@
     moreBtn.disabled=false;
   }
 
-  /* events */
+    /* events */
   form.addEventListener("submit", function(e){
     e.preventDefault();
-    var name=(input.value||"").trim(); if(!name) return;
-    currentName=name; loadedCount=0; window._accum=[]; renderLoading();
-    fetchProfile(name,5,currentFilter,0).then(function(data){
-      loadedCount += (data.summary||[]).length; renderList(data);
-    }).catch(function(err){
-      renderError(T("errLoad"), String(err && err.message ? err.message : err));
-    });
+    var name=(input.value||"").trim();
+    if(!name) return;
+    currentName=name;
+    loadedCount=0;
+    window._accum=[];
+    renderLoading();
+    fetchProfile(name,5,currentFilter,0)
+      .then(function(data){
+        loadedCount += (data.summary||[]).length;
+        renderList(data);
+      })
+      .catch(function(err){
+        renderError(T("errLoad"), String(err && err.message ? err.message : err));
+      });
   });
 
   filterBar.addEventListener("click", function(e){
-    var b=e.target.closest ? e.target.closest("[data-filter]") : null; 
+    var target = e.target;
+    var b = null;
+    // closest가 없는 브라우저 대응
+    while (target && target !== filterBar) {
+      if (target.getAttribute && target.getAttribute("data-filter")) { b = target; break; }
+      target = target.parentNode;
+    }
     if(!b) return;
-    currentFilter=b.getAttribute("data-filter"); setChips();
-    if(window._raw) renderList(window._raw,currentFilter);
+    currentFilter = b.getAttribute("data-filter");
+    setChips();
+    if(window._raw) renderList(window._raw, currentFilter);
   });
 
-  topNEl.addEventListener("change", function(){ if(window._accum && window._accum.length) renderCharts(window._accum); });
-  heatAxesSel.addEventListener("change", function(){ localStorage.setItem(STORAGE.heatAxes, heatAxesSel.value); if(window._accum) renderCharts(window._accum); });
+  topNEl.addEventListener("change", function(){
+    if(window._accum && window._accum.length) renderCharts(window._accum);
+  });
+
+  heatAxesSel.addEventListener("change", function(){
+    try { localStorage.setItem(STORAGE.heatAxes, heatAxesSel.value); } catch(e){}
+    if(window._accum) renderCharts(window._accum);
+  });
 
   document.getElementById("btn-save-charts").addEventListener("click", function(){
-    qsa("canvas").forEach(function(cv,i){ try{ var url=cv.toDataURL("image/png"); var a=document.createElement("a"); a.href=url; a.download="thunder_chart_"+(i+1)+".png"; document.body.appendChild(a); a.click(); a.remove(); }catch(e){} });
+    qsa("canvas").forEach(function(cv,i){
+      try{
+        var url=cv.toDataURL("image/png");
+        var a=document.createElement("a");
+        a.href=url;
+        a.download="thunder_chart_"+(i+1)+".png";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }catch(e){}
+    });
   });
+
   document.getElementById("btn-export").addEventListener("click", function(){
     if(!(window._accum && window._accum.length)) return;
     var header=["matchId","mode","queue","champion","win","k","d","a","kda","cs","timeSec","timestamp","role","items"];
-    var rows=window._accum.map(function(m){ var mch=(m.kda||'').match(/^(\d+)\/(\d+)\/(\d+)/)||[]; var k=+mch[1]||0, d=+mch[2]||0, a=+mch[3]||0; return [m.gameId,m.gameMode,m.queueType,m.champion,m.win?1:0,k,d,a,(m.kda||"").split(" ").slice(-1)[0],m.cs||0,m.time||0,m.timestamp||0,m.role||"", (m.items||[]).join("|")]; });
-    var csv=[header].concat(rows).map(function(r){ return r.map(function(x){ return '"'+String(x).replace(/"/g,'""')+'"'; }).join(","); }).join("\n");
-    var blob=new Blob([csv],{type:"text/csv;charset=utf-8"}); var url=URL.createObjectURL(blob); var a=document.createElement("a"); a.href=url; a.download="thunder_"+(currentName||"player").replace(/\W+/g,"_")+".csv"; a.click(); URL.revokeObjectURL(url);
+    var rows=window._accum.map(function(m){
+      var mch=(m.kda||'').match(/^(\d+)\/(\d+)\/(\d+)/)||[];
+      var k=+mch[1]||0, d=+mch[2]||0, a=+mch[3]||0;
+      return [m.gameId,m.gameMode,m.queueType,m.champion,m.win?1:0,k,d,a,(m.kda||"").split(" ").slice(-1)[0],m.cs||0,m.time||0,m.timestamp||0,m.role||"", (m.items||[]).join("|")];
+    });
+    var csv=[header].concat(rows).map(function(r){
+      return r.map(function(x){ return '"'+String(x).replace(/"/g,'""')+'"'; }).join(",");
+    }).join("\n");
+    var blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a");
+    a.href=url;
+    a.download="thunder_"+(currentName||"player").replace(/\W+/g,"_")+".csv";
+    a.click();
+    URL.revokeObjectURL(url);
   });
+
   document.getElementById("btn-share").addEventListener("click", function(){
-    var u=new URL(location.href); if(currentName) u.searchParams.set("q", currentName); u.searchParams.set("queue", currentFilter);
-    try{ if(navigator.share) navigator.share({ title:"Thunder", url:u.toString() }); else { navigator.clipboard.writeText(u.toString()); alert("링크 복사됨"); } }catch(e){}
+    var u=new URL(location.href);
+    if(currentName) u.searchParams.set("q", currentName);
+    u.searchParams.set("queue", currentFilter);
+    try{
+      if(navigator.share){
+        navigator.share({ title:"Thunder", url:u.toString() });
+      }else{
+        navigator.clipboard.writeText(u.toString());
+        alert("링크 복사됨");
+      }
+    }catch(e){}
   });
+
   document.getElementById("btn-chart-theme").addEventListener("click", function(){
     CHART_THEME = CHART_THEME==="auto" ? "dark" : (CHART_THEME==="dark" ? "light" : "auto");
-    localStorage.setItem(STORAGE.chartTheme, CHART_THEME); qs("#chart-theme-code").textContent = CHART_THEME.toUpperCase();
-    applyChartDefaults(); if(window._accum) renderCharts(window._accum);
+    try { localStorage.setItem(STORAGE.chartTheme, CHART_THEME); } catch(e){}
+    qs("#chart-theme-code").textContent = CHART_THEME.toUpperCase();
+    applyChartDefaults();
+    if(window._accum) renderCharts(window._accum);
   });
+
   document.getElementById("btn-lang").addEventListener("click", function(){
-    LANG = (LANG==="en") ? "ko" : "en"; localStorage.setItem(STORAGE.lang, LANG); qs("#lang-code").textContent = LANG.toUpperCase();
-    if(window._raw) renderList(window._raw,currentFilter);
+    LANG = (LANG==="en") ? "ko" : "en";
+    try { localStorage.setItem(STORAGE.lang, LANG); } catch(e){}
+    qs("#lang-code").textContent = LANG.toUpperCase();
+    if(window._raw) renderList(window._raw, currentFilter);
   });
 
   document.getElementById("btn-more").addEventListener("click", function(){
     if(!currentName) return;
-    document.getElementById("btn-more").disabled = true;
+    var btn = document.getElementById("btn-more");
+    btn.disabled = true;
     fetchProfile(currentName, 5, currentFilter, loadedCount)
       .then(function(data){
         loadedCount += (data.summary || []).length;
@@ -525,24 +585,42 @@
         renderError(T("errLoad"), String(err && err.message ? err.message : err));
       })
       .then(function(){
-        document.getElementById("btn-more").disabled = false;
+        btn.disabled = false;
       });
   });
 
   document.getElementById("btn-health").addEventListener("click", function(){
     healthState.textContent="확인 중…";
-    fetch(API_BASE+"/health").then(function(r){ return r.text().then(function(t){ return {ok:r.ok, status:r.status, text:t}; }); })
-      .then(function(p){ healthState.textContent = p.ok ? ("OK: "+p.text) : ("ERR "+p.status+": "+p.text); })
-      .catch(function(e){ healthState.textContent = "요청 실패: "+(e && e.message ? e.message : e); });
+    fetch(API_BASE+"/health")
+      .then(function(r){ return r.text().then(function(t){ return {ok:r.ok, status:r.status, text:t}; }); })
+      .then(function(p){
+        healthState.textContent = p.ok ? ("OK: "+p.text) : ("ERR "+p.status+": "+p.text);
+      })
+      .catch(function(e){
+        healthState.textContent = "요청 실패: "+(e && e.message ? e.message : e);
+      });
   });
 
   /* init from URL */
   (function(){
     var p=new URL(location.href).searchParams;
-    var q=p.get("q"); var queue=p.get("queue");
-    if(queue){ currentFilter=String(queue).toUpperCase(); setChips(); }
-    if(q){ input.value=q; try{ if(form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event("submit")); }catch(e){ form.dispatchEvent(new Event("submit")); } }
-    else { setChips(); }
+    var q=p.get("q");
+    var queue=p.get("queue");
+    if(queue){
+      currentFilter=String(queue).toUpperCase();
+      setChips();
+    }
+    if(q){
+      input.value=q;
+      try{
+        if(form.requestSubmit){ form.requestSubmit(); }
+        else { form.dispatchEvent(new Event("submit")); }
+      }catch(e){
+        form.dispatchEvent(new Event("submit"));
+      }
+    }else{
+      setChips();
+    }
   })();
   </script>
 </body>
