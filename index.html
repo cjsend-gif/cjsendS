@@ -5,10 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Thunder · 전적검색</title>
 
-  <!-- Tailwind: CDN JIT (간단 토큰) -->
+  <!-- Tailwind (CDN) -->
   <script>
-    // Tailwind CDN은 전역 tailwind.config를 읽습니다.
-    tailwind = {
+    window.tailwind = {
       config: {
         theme: {
           container: { center: true, padding: "1rem" },
@@ -30,14 +29,12 @@
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Chart.js + plugins (문서 권장 순서/버전) -->
+  <!-- Chart.js + plugins -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2"></script>
 
   <meta name="theme-color" content="#0b1220" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' x='6' font-size='56'%3E%E2%9A%A1%EF%B8%8F%3C/text%3E%3C/svg%3E" />
-
   <style>
     :root{ --bg:#0b1220; --panel:#0d1324; --line:#20283a; --ink:#e5e7eb; --muted:#9aa3b2; --accent:#60a5fa; }
     @media (prefers-color-scheme: light) {
@@ -51,37 +48,35 @@
     .btn{ display:inline-flex; align-items:center; justify-content:center; height:44px; padding:0 16px; border-radius:12px; font-weight:600 }
     .btn-primary{ background:var(--accent); color:#081018 }
     .chip{ padding:8px 12px; border:1px solid var(--line); border-radius:9999px; background:transparent; cursor:pointer }
-    .chip.is-active{ outline:3px solid color-mix(in oklab, var(--accent) 35%, transparent); border-color:var(--accent) }
+    .chip.is-active{ outline:3px solid rgba(96,165,250,.35); border-color:var(--accent) }
     .muted{ color:var(--muted) }
     .knum{ font-feature-settings: "tnum"; font-variant-numeric: tabular-nums }
     table.simple{ width:100%; border-collapse:collapse; font-size:.95rem }
     table.simple th, table.simple td{ border:1px solid var(--line); padding:.5rem .6rem; text-align:left }
-    table.simple th{ background:color-mix(in oklab, var(--ink) 4%, transparent); font-weight:600 }
-    @media (prefers-reduced-motion: reduce){ *{ animation:none!important; transition:none!important } }
-    /* JS test badge */
+    table.simple th{ background:rgba(229,231,235,.06); font-weight:600 }
     #js-test{ position:fixed; right:10px; bottom:10px; padding:6px 10px; border:1px solid #9aa3b2; border-radius:10px; background:#fff; color:#111; font:12px/1.2 system-ui; z-index:9999 }
     @media (prefers-color-scheme: dark){ #js-test{ background:#111827; color:#e5e7eb; border-color:#374151 } }
   </style>
 </head>
 
 <body class="font-sans">
-  <noscript><div style="margin:16px" class="card p-4">이 사이트는 자바스크립트가 필요합니다. 브라우저에서 JS를 활성화해 주세요.</div></noscript>
+  <noscript><div style="margin:16px" class="card p-4">이 사이트는 자바스크립트가 필요합니다.</div></noscript>
 
-  <!-- JS 동작 확인 배지 -->
+  <!-- JS 동작 배지 -->
   <div id="js-test">JS: OFF</div>
   <script>
     (function(){
-      const el = document.getElementById('js-test');
-      const set = (msg)=> el && (el.textContent = msg);
+      var el = document.getElementById('js-test');
+      function set(msg){ if(el) el.textContent = msg; }
       set('JS: ON');
-      window.addEventListener('error', e => set('ERR: ' + (e?.message || 'error')));
-      window.addEventListener('unhandledrejection', e => set('REJ: ' + (e?.reason?.message || e?.reason || 'rejection')));
-      setTimeout(()=> { if (el && el.textContent.startsWith('JS: ON')) el.style.display='none'; }, 10000);
+      window.addEventListener('error', function(e){ set('ERR: ' + (e && e.message ? e.message : 'error')); });
+      window.addEventListener('unhandledrejection', function(e){ var r=e && e.reason; set('REJ: ' + (r && r.message ? r.message : r)); });
+      setTimeout(function(){ if(el && el.textContent.indexOf('JS: ON')===0) el.style.display='none'; }, 10000);
     })();
   </script>
 
   <!-- Header -->
-  <header class="sticky top-0 z-40 border-b" style="border-color:var(--line); backdrop-filter:saturate(1.2) blur(6px); background:color-mix(in oklab, var(--bg) 80%, transparent)">
+  <header class="sticky top-0 z-40 border-b" style="border-color:var(--line); backdrop-filter:saturate(1.2) blur(6px); background:rgba(11,18,32,.8)">
     <div class="container max-w-5xl py-3 flex items-center justify-between gap-3">
       <div class="flex items-center gap-2 text-xl font-extrabold tracking-tight"><span>⚡</span><span>Thunder</span></div>
       <details id="menu" class="relative">
@@ -106,7 +101,7 @@
         <input id="summoner-name" class="w-full h-12 px-4 rounded-xl border outline-none" style="border-color:var(--line); background:transparent" placeholder="예) Hide on bush#KR1" />
         <button type="submit" class="btn btn-primary">검색</button>
       </form>
-      <p class="muted text-sm mt-2">최근 5판 기준 간단 요약(KDA/승패/챔피언/모드/시간)을 보여주고 랭크/고급 차트는 접어서 제공합니다.</p>
+      <p class="muted text-sm mt-2">최근 5판 기준 간단 요약을 보여줍니다.</p>
     </section>
 
     <!-- Filter chips -->
@@ -120,7 +115,7 @@
       </div>
     </section>
 
-    <!-- KPI strip -->
+    <!-- KPI -->
     <section id="strip" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div class="card p-4"><div class="muted text-sm">최근 승률</div><div id="kpi-winrate" class="text-3xl font-extrabold knum">–</div></div>
       <div class="card p-4"><div class="muted text-sm">평균 KDA</div><div id="kpi-kda" class="text-3xl font-extrabold knum">–</div></div>
@@ -132,7 +127,7 @@
       <div class="muted">위 입력창에 소환사명을 입력해 주세요.</div>
     </section>
 
-    <!-- Advanced -->
+    <!-- Advanced (collapsed UI 그대로 유지) -->
     <details id="advanced" class="card p-4" open>
       <summary class="cursor-pointer font-semibold">고급 통계</summary>
       <div class="mt-4 space-y-4">
@@ -201,274 +196,352 @@
     </footer>
   </main>
 
-  <!-- App (all-in-one) -->
+  <!-- App -->
   <script>
-  /* ========= Config ========= */
-  const API_BASE = "https://cjsend.erickparkcha.workers.dev";
-  const STORAGE = { hist:"th_recent", lang:"th_lang", chartTheme:"th_chart_theme", heatAxes:"th_heat_axes" };
-  let DDRAGON_VER = "latest";
-  (async()=>{ try{ const r=await fetch("https://ddragon.leagueoflegends.com/api/versions.json"); const j=await r.json(); if(Array.isArray(j)&&j.length) DDRAGON_VER=j[0]; }catch{} })();
+  /* ==== Helpers (ES5-safe) ==== */
+  function qs(s, r){ return (r||document).querySelector(s); }
+  function qsa(s, r){ return Array.prototype.slice.call((r||document).querySelectorAll(s)); }
+  function safe(v){ v = (v===null || v===undefined) ? "" : String(v); return v.replace(/[&<>]/g, function(s){ return ({ "&":"&amp;","<":"&lt;",">":"&gt;" })[s]; }); }
+  function fmtT(sec){ if(!sec) return "-:--"; var m=Math.floor(sec/60), s=('0'+Math.floor(sec%60)).slice(-2); return m+":"+s; }
+  function timeAgo(ms){ var t=Date.now()-(ms||0), m=Math.floor(t/60000); if(m<1) return "방금 전"; if(m<60) return m+"분 전"; var h=Math.floor(m/60); if(h<24) return h+"시간 전"; var d=Math.floor(h/24); return d+"일 전"; }
 
-  /* ========= i18n ========= */
-  const i18n = {
+  /* ==== Config ==== */
+  var API_BASE = "https://cjsend.erickparkcha.workers.dev";
+  var STORAGE = { hist:"th_recent", lang:"th_lang", chartTheme:"th_chart_theme", heatAxes:"th_heat_axes" };
+  var DDRAGON_VER = "latest";
+
+  try {
+    fetch("https://ddragon.leagueoflegends.com/api/versions.json").then(function(r){ return r.json(); }).then(function(j){ if(j && j.length){ DDRAGON_VER=j[0]; } }).catch(function(){});
+  } catch(e){}
+
+  /* ==== i18n ==== */
+  var i18n = {
     ko:{ searchBtn:"검색", empty:"위 입력창에 소환사명을 입력해 주세요.", errTitle:"에러", errLoad:"프로필을 불러오지 못했습니다.", cached:"최대 45초 캐시됨" },
     en:{ searchBtn:"Search", empty:"Enter a Summoner name or Riot ID above.", errTitle:"Error", errLoad:"Failed to load profile.", cached:"Cached up to 45s" }
   };
-  let LANG = (localStorage.getItem(STORAGE.lang) || "ko");
-  const T = (k)=> (i18n[LANG] && i18n[LANG][k]) || i18n.ko[k] || k;
+  var LANG = localStorage.getItem(STORAGE.lang) || "ko";
+  function T(k){ return (i18n[LANG] && i18n[LANG][k]) || i18n.ko[k] || k; }
 
-  /* ========= Chart theme ========= */
-  let CHART_THEME = localStorage.getItem(STORAGE.chartTheme) || "auto";
-  const mediaDark = window.matchMedia?.("(prefers-color-scheme: dark)");
-  const isDark = ()=> CHART_THEME==="dark" || (CHART_THEME==="auto" && mediaDark?.matches);
-  function chartColors(){ const dark=isDark(); return { text: dark?"#e5e7eb":"#111827", grid: dark?"rgba(255,255,255,.15)":"rgba(17,24,39,.15)", heat: dark? v=>`rgba(255,255,255,${Math.min(0.15+v/10*0.85,1)})`: v=>`rgba(0,0,0,${Math.min(0.08+v/12*0.75,0.9)})` }; }
-  function applyChartDefaults(){ const c=chartColors(); Chart.defaults.color=c.text; Chart.defaults.borderColor=c.grid; }
-  applyChartDefaults(); mediaDark?.addEventListener?.("change", ()=>{ if(CHART_THEME==="auto" && window._accum){ applyChartDefaults(); renderCharts(window._accum); } });
-  document.getElementById("chart-theme-code").textContent = CHART_THEME.toUpperCase();
+  /* ==== Chart theme ==== */
+  var CHART_THEME = localStorage.getItem(STORAGE.chartTheme) || "auto";
+  var mediaDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  function isDark(){ return CHART_THEME==="dark" || (CHART_THEME==="auto" && mediaDark && mediaDark.matches); }
+  function chartColors(){ var dark=isDark(); return { text: dark?"#e5e7eb":"#111827", grid: dark?"rgba(255,255,255,.15)":"rgba(17,24,39,.15)", heat: function(v){ return dark ? "rgba(255,255,255,"+Math.min(0.15+v/10*0.85,1)+")" : "rgba(0,0,0,"+Math.min(0.08+v/12*0.75,0.9)+")"; } }; }
+  function applyChartDefaults(){ var c=chartColors(); Chart.defaults.color=c.text; Chart.defaults.borderColor=c.grid; }
+  applyChartDefaults();
+  if(mediaDark && mediaDark.addEventListener){
+    mediaDark.addEventListener("change", function(){ if(CHART_THEME==="auto" && window._accum){ applyChartDefaults(); renderCharts(window._accum); } });
+  }
+  qs("#chart-theme-code").textContent = CHART_THEME.toUpperCase();
 
-  /* ========= DOM ========= */
-  const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
-  const form=$("#search-form"), input=$("#summoner-name"), out=$("#result");
-  const stripWin=$("#kpi-winrate"), stripKDA=$("#kpi-kda"), stripRole=$("#kpi-role");
-  const filterBar=$("#filter-bar"), moreBtn=$("#btn-more"), healthBtn=$("#btn-health"), healthState=$("#health-state");
-  const topNEl=$("#topN"), heatAxesSel=$("#heat-axes");
-  $("#lang-code").textContent = (LANG||"ko").toUpperCase();
+  /* ==== DOM ==== */
+  var form=qs("#search-form"), input=qs("#summoner-name"), out=qs("#result");
+  var stripWin=qs("#kpi-winrate"), stripKDA=qs("#kpi-kda"), stripRole=qs("#kpi-role");
+  var filterBar=qs("#filter-bar"), moreBtn=qs("#btn-more"), healthBtn=qs("#btn-health"), healthState=qs("#health-state");
+  var topNEl=qs("#topN"), heatAxesSel=qs("#heat-axes");
+  qs("#lang-code").textContent = (LANG||"ko").toUpperCase();
 
-  /* ========= State ========= */
-  let currentFilter="ALL", currentName="", loadedCount=0;
+  /* ==== State ==== */
+  var currentFilter="ALL", currentName="", loadedCount=0;
   heatAxesSel.value = localStorage.getItem(STORAGE.heatAxes) || "champ-queue";
 
-  /* ========= Utils ========= */
-  const safe=(v)=>String(v??"").replace(/[&<>]/g, s=>({ "&":"&amp;","<":"&lt;",">":"&gt;" }[s]));
-  const fmtT=(sec)=>{ if(!sec) return "-:--"; const m=Math.floor(sec/60), s=String(Math.floor(sec%60)).padStart(2,"0"); return `${m}:${s}`; };
-  const timeAgo=(ms)=>{ const t=Date.now()-(ms||0); const m=Math.floor(t/60000); if(m<1) return "방금 전"; if(m<60) return `${m}분 전`; const h=Math.floor(m/60); if(h<24) return `${h}시간 전`; const d=Math.floor(h/24); return `${d}일 전`; };
-  const setChips=()=> $$("#filter-bar .chip").forEach(b=> b.classList.toggle("is-active", b.dataset.filter===currentFilter));
-  function rankLine(e){ if(!e) return `<span class="muted">언랭크</span>`; const lp=typeof e.leaguePoints==="number"?`${e.leaguePoints}LP`:""; const wr=e.wins+e.losses>0?` · ${Math.round(e.wins/(e.wins+e.losses)*100)}%`:""; const tier=String(e.tier||"").toLowerCase().replace(/^\w/,c=>c.toUpperCase()); return `<b>${tier} ${e.rank}</b> ${lp}${wr}`; }
-
-  /* ========= API ========= */
-  async function fetchProfile(name, count=5, queue="ALL", start=0){
-    const url = `${API_BASE}/profile?name=${encodeURIComponent(name)}&count=${count}&queue=${encodeURIComponent(queue)}&start=${start}`;
-    const res = await fetch(url); const json = await res.json().catch(()=> ({}));
-    if(!res.ok || json.error){ const err=typeof json.error==="string"?json.error:JSON.stringify(json.error||json); throw new Error(err||`HTTP ${res.status}`); }
-    return json;
+  /* ==== API ==== */
+  function fetchProfile(name, count, queue, start){
+    count = (typeof count==="number") ? count : 5;
+    queue = queue || "ALL";
+    start = (typeof start==="number") ? start : 0;
+    var url = API_BASE + "/profile?name=" + encodeURIComponent(name) + "&count=" + count + "&queue=" + encodeURIComponent(queue) + "&start=" + start;
+    return fetch(url).then(function(res){ return res.json().then(function(json){ return { ok:res.ok, json:json, status:res.status }; }); })
+      .then(function(p){ if(!p.ok || p.json.error){ var err = (typeof p.json.error==="string")?p.json.error:JSON.stringify(p.json.error||{}); throw new Error(err || ("HTTP "+p.status)); } return p.json; });
   }
 
-  /* ========= Items meta ========= */
-  let ITEM_DICT=null;
-  const itemIconURL = id => `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VER}/img/item/${id}.png`;
-  async function ensureItemDict(){ if(ITEM_DICT) return ITEM_DICT; const locale= LANG==="en" ? "en_US" : "ko_KR"; try{ const r=await fetch(`https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VER}/data/${locale}/item.json`); const j=await r.json(); ITEM_DICT=j?.data||{}; }catch{ ITEM_DICT={}; } return ITEM_DICT; }
+  /* ==== Item meta ==== */
+  var ITEM_DICT=null;
+  function itemIconURL(id){ return "https://ddragon.leagueoflegends.com/cdn/"+DDRAGON_VER+"/img/item/"+id+".png"; }
+  function ensureItemDict(){
+    if(ITEM_DICT) return Promise.resolve(ITEM_DICT);
+    var locale = (LANG==="en") ? "en_US" : "ko_KR";
+    return fetch("https://ddragon.leagueoflegends.com/cdn/"+DDRAGON_VER+"/data/"+locale+"/item.json")
+      .then(function(r){ return r.json(); }).then(function(j){ ITEM_DICT=(j&&j.data)||{}; return ITEM_DICT; }).catch(function(){ ITEM_DICT={}; return ITEM_DICT; });
+  }
 
-  /* ========= Renderers ========= */
-  let chartWin=null, chartRoles=null, chartTrend=null, chartChamps=null, chartKDA=null, chartRoleTrend=null, chartHeatmap=null, chartHourly=null;
+  /* ==== UI helpers ==== */
+  function setChips(){ qsa("#filter-bar .chip").forEach(function(b){ b.classList.toggle("is-active", b.getAttribute("data-filter")===currentFilter); }); }
+  function rankLine(e){ if(!e) return '<span class="muted">언랭크</span>'; var lp=(typeof e.leaguePoints==="number")?(e.leaguePoints+"LP"):""; var wr=(e.wins+e.losses>0)?(" · "+Math.round(e.wins/(e.wins+e.losses)*100)+"%"):""; var tier=String(e.tier||"").toLowerCase().replace(/^\w/,function(c){return c.toUpperCase();}); return "<b>"+tier+" "+e.rank+"</b> "+lp+wr; }
 
-  function renderError(msg,debug=""){ out.innerHTML = `<div class="p-4 rounded-xl" style="background:color-mix(in oklab, red 10%, transparent); border:1px solid color-mix(in oklab, red 35%, transparent)"><div class="font-semibold">${T("errTitle")}</div><div class="mt-1">${safe(msg)}</div>${debug?`<pre class="mt-2 text-xs opacity-80 whitespace-pre-wrap">${safe(debug)}</pre>`:""}</div>`; moreBtn.disabled=true; }
-  function renderLoading(){ out.innerHTML = `<div class="p-4 muted">Loading…</div>`; }
+  /* ==== Renderers ==== */
+  var chartWin=null, chartRoles=null, chartTrend=null, chartChamps=null, chartKDA=null, chartRoleTrend=null, chartHeatmap=null, chartHourly=null;
+
+  function renderError(msg, debug){
+    out.innerHTML = '<div class="p-4 rounded-xl" style="background:rgba(255,0,0,.08); border:1px solid rgba(255,0,0,.35)"><div class="font-semibold">'+T("errTitle")+'</div><div class="mt-1">'+safe(msg)+'</div>'+(debug?'<pre class="mt-2 text-xs opacity-80 whitespace-pre-wrap">'+safe(debug)+'</pre>':'')+'</div>';
+    moreBtn.disabled=true;
+  }
+  function renderLoading(){ out.innerHTML = '<div class="p-4 muted">Loading…</div>'; }
 
   function renderKPIs(items){
-    const wins=items.filter(m=>m.win).length, tot=items.length;
-    stripWin.textContent = tot ? `${Math.round(wins/tot*100)}%` : "–";
-    const kd = items.map(m=>{ const [k,d,a]=(m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(n=>+n||0); return d===0?(k+a):(k+a)/d; });
-    stripKDA.textContent = kd.length ? (kd.reduce((s,v)=>s+v,0)/kd.length).toFixed(2) : "–";
-    const roleCnt = items.reduce((m,x)=>{ const r=(x.role||"").toUpperCase(); if(!r) return m; m[r]=(m[r]||0)+1; return m; }, {});
-    const topRole = Object.entries(roleCnt).sort((a,b)=>b[1]-a[1])[0]?.[0] || "–";
+    var wins=items.filter(function(m){return m.win;}).length, tot=items.length;
+    stripWin.textContent = tot ? Math.round(wins/tot*100)+'%' : '–';
+    var kd = items.map(function(m){ var mch=(m.kda||'').match(/^(\d+)\/(\d+)\/(\d+)/)||[]; var k=+mch[1]||0, d=+mch[2]||0, a=+mch[3]||0; return d===0?(k+a):(k+a)/d; });
+    stripKDA.textContent = kd.length ? (kd.reduce(function(s,v){return s+v;},0)/kd.length).toFixed(2) : '–';
+    var roleCnt = items.reduce(function(mm,x){ var r=(x.role||'').toUpperCase(); if(!r) return mm; mm[r]=(mm[r]||0)+1; return mm; }, {});
+    var topRole = Object.keys(roleCnt).sort(function(a,b){return roleCnt[b]-roleCnt[a];})[0] || '–';
     stripRole.textContent = topRole;
   }
 
-  async function renderItemsCloud(items){
-    const dict=await ensureItemDict(); const target=$("#items-cloud"); const freq={};
-    for(const m of items) for(const id of (m.items||[])) if(id) freq[id]=(freq[id]||0)+1;
-    const top=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,12);
-    target.innerHTML = top.length? top.map(([id,c])=>{
-      const name=dict[id]?.name||id;
-      return `<div class="chip flex items-center gap-2" title="${safe(name)} ×${c}">
-        <img src="${itemIconURL(id)}" class="w-6 h-6 rounded" alt="${safe(name)}"><span class="text-sm">${safe(String(name).slice(0,12))}</span><span class="muted text-xs">×${c}</span>
-      </div>`;
-    }).join("") : `<div class="muted text-sm">데이터 없음</div>`;
+  function renderItemsCloud(items){
+    return ensureItemDict().then(function(dict){
+      var target=qs("#items-cloud"); var freq={};
+      items.forEach(function(m){ (m.items||[]).forEach(function(id){ if(id) freq[id]=(freq[id]||0)+1; }); });
+      var top=Object.keys(freq).map(function(id){return [id,freq[id]];}).sort(function(a,b){return b[1]-a[1];}).slice(0,12);
+      target.innerHTML = top.length ? top.map(function(p){
+        var id=p[0], c=p[1]; var name=(dict[id]&&dict[id].name)||id;
+        return '<div class="chip flex items-center gap-2" title="'+safe(name)+' ×'+c+'"><img src="'+itemIconURL(id)+'" class="w-6 h-6 rounded" alt="'+safe(name)+'"><span class="text-sm">'+safe(String(name).slice(0,12))+'</span><span class="muted text-xs">×'+c+'</span></div>';
+      }).join("") : '<div class="muted text-sm">데이터 없음</div>';
+    });
   }
 
   function clusterBuilds(items){
-    const builds = items.map(m => Array.from(new Set((m.items||[]).filter(Boolean))).sort((a,b)=>a-b)).filter(a=>a.length);
-    const clusters=[]; const sim=(a,b)=>{ const A=new Set(a),B=new Set(b); let inter=0; for(const x of A) if(B.has(x)) inter++; const uni=A.size+B.size-inter; return uni? inter/uni:0; };
-    for(const b of builds){ let placed=false;
-      for(const c of clusters){ if(sim(c.rep,b)>=0.5){ c.items.push(b); const f={}; for(const arr of c.items) for(const id of arr) f[id]=(f[id]||0)+1; c.rep=Object.entries(f).sort((x,y)=>y[1]-x[1]).map(([id])=>+id).slice(0,6); placed=true; break; } }
-      if(!placed) clusters.push({rep:[...b], items:[b]});
-    }
-    return clusters.sort((a,b)=>b.items.length-a.items.length);
+    function uniqSorted(arr){ var s={}, out=[]; arr.forEach(function(x){ if(x) s[x]=1; }); Object.keys(s).sort(function(a,b){return a-b;}).forEach(function(k){ out.push(+k); }); return out; }
+    var builds = items.map(function(m){ return uniqSorted(m.items||[]); }).filter(function(a){ return a.length; });
+    var clusters=[];
+    function sim(a,b){ var A={},B={},i, inter=0, uni; for(i=0;i<a.length;i++) A[a[i]]=1; for(i=0;i<b.length;i++) B[b[i]]=1; Object.keys(A).forEach(function(x){ if(B[x]) inter++; }); uni=Object.keys(A).length+Object.keys(B).length-inter; return uni? inter/uni:0; }
+    builds.forEach(function(b){
+      var placed=false;
+      for(var i=0;i<clusters.length;i++){
+        var c=clusters[i];
+        if(sim(c.rep,b)>=0.5){
+          c.items.push(b);
+          var f={}, j, k;
+          for(j=0;j<c.items.length;j++){ for(k=0;k<c.items[j].length;k++){ var id=c.items[j][k]; f[id]=(f[id]||0)+1; } }
+          c.rep=Object.keys(f).sort(function(x,y){return f[y]-f[x];}).map(function(id){return +id;}).slice(0,6);
+          placed=true; break;
+        }
+      }
+      if(!placed){ clusters.push({rep:b.slice(), items:[b]}); }
+    });
+    return clusters.sort(function(a,b){ return b.items.length-a.items.length; });
   }
-  async function renderItemClusters(items){
-    const dict=await ensureItemDict(); const wrap=$("#items-clusters"); const cls=clusterBuilds(items).slice(0,5);
-    wrap.innerHTML = cls.length? cls.map((c,idx)=>{
-      const rep=c.rep.map(id=>`<div class="flex items-center gap-1" title="${safe(dict[id]?.name||id)}"><img src="${itemIconURL(id)}" class="w-6 h-6 rounded"><span class="text-xs">${safe(String(dict[id]?.name||id).slice(0,10))}</span></div>`).join("");
-      return `<div class="p-2 rounded-xl border" style="border-color:var(--line)"><div class="muted text-xs mb-1">Cluster ${idx+1} · ${c.items.length} games</div><div class="flex flex-wrap gap-2">${rep}</div></div>`;
-    }).join("") : `<div class="muted text-sm">데이터 없음</div>`;
+
+  function renderItemClusters(items){
+    return ensureItemDict().then(function(dict){
+      var wrap=qs("#items-clusters");
+      var cls=clusterBuilds(items).slice(0,5);
+      wrap.innerHTML = cls.length ? cls.map(function(c,idx){
+        var rep=c.rep.map(function(id){ var nm=(dict[id]&&dict[id].name)||id; return '<div class="flex items-center gap-1" title="'+safe(nm)+'"><img src="'+itemIconURL(id)+'" class="w-6 h-6 rounded"><span class="text-xs">'+safe(String(nm).slice(0,10))+'</span></div>'; }).join("");
+        return '<div class="p-2 rounded-xl border" style="border-color:var(--line)"><div class="muted text-xs mb-1">Cluster '+(idx+1)+' · '+c.items.length+' games</div><div class="flex flex-wrap gap-2">'+rep+'</div></div>';
+      }).join("") : '<div class="muted text-sm">데이터 없음</div>';
+    });
   }
 
   function renderRoleKDATable(items){
-    const roles = ["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"]; const tbody=$("#role-kda-table tbody");
-    const rows = roles.map(r=>{
-      const arr=items.filter(m=>(m.role||"").toUpperCase()===r);
-      const kd=arr.map(m=>{ const [k,d,a]=(m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(n=>+n||0); return d===0?(k+a):(k+a)/d; });
-      const avg= kd.length? (kd.reduce((s,v)=>s+v,0)/kd.length).toFixed(2) : "-";
-      return `<tr><td>${r}</td><td>${avg}</td><td>${arr.length}</td></tr>`;
+    var roles = ["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"], tbody=qs("#role-kda-table tbody");
+    var rows = roles.map(function(r){
+      var arr=items.filter(function(m){ return (m.role||"").toUpperCase()===r; });
+      var kd=arr.map(function(m){ var mch=(m.kda||'').match(/^(\d+)\/(\d+)\/(\d+)/)||[]; var k=+mch[1]||0, d=+mch[2]||0, a=+mch[3]||0; return d===0?(k+a):(k+a)/d; });
+      var avg = kd.length ? (kd.reduce(function(s,v){return s+v;},0)/kd.length).toFixed(2) : "-";
+      return '<tr><td>'+r+'</td><td>'+avg+'</td><td>'+arr.length+'</td></tr>';
     }).join("");
     tbody.innerHTML = rows;
   }
 
   function renderCharts(items){
-    const C=chartColors();
-    // Win/Loss
-    const wins=items.filter(m=>m.win).length, losses=items.length-wins;
-    chartWin?.destroy(); chartWin=new Chart($("#chart-winrate"), { type:"doughnut", data:{ labels:["승","패"], datasets:[{ data:[wins,losses] }] }, options:{ plugins:{legend:{ labels:{ color:C.text }}}}});
-    // Roles
-    const roles=["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"]; const counts=roles.map(r=> items.filter(x=>(x.role||"").toUpperCase()===r).length );
-    chartRoles?.destroy(); chartRoles=new Chart($("#chart-roles"),{ type:"bar", data:{ labels:roles, datasets:[{ data:counts }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
-    // Trend
-    const sorted=[...items].sort((a,b)=>(a.timestamp||0)-(b.timestamp||0)); let cum=0;
-    const lab=sorted.map(m=> new Date(m.timestamp||0).toLocaleDateString()); const dat=sorted.map((m,i)=>{ if(m.win) cum++; return Math.round(cum/(i+1)*100); });
-    chartTrend?.destroy(); chartTrend=new Chart($("#chart-trend"),{ type:"line", data:{ labels:lab, datasets:[{ data:dat }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
-    // Champs TopN
-    const N=Math.min(Math.max(parseInt(topNEl.value||"7",10),3),15); const by={}; for(const m of items){ const c=m.champion||"Unknown"; by[c]??={g:0,w:0}; by[c].g++; if(m.win) by[c].w++; }
-    const champs=Object.entries(by).sort((a,b)=>b[1].g-a[1].g).slice(0,N);
-    chartChamps?.destroy(); chartChamps=new Chart($("#chart-champs"),{ type:"bar", data:{ labels:champs.map(([c])=>c), datasets:[{ data:champs.map(([_,s])=>Math.round(s.w/s.g*100)) }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
-    // KDA boxplot (fallback histogram)
-    const kds=items.map(m=>{ const [k,d,a]=(m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(n=>+n||0); return d===0?(k+a):(k+a)/d; }).filter(Number.isFinite);
-    const bp=(arr)=>{ if(!arr.length) return {min:0,q1:0,median:0,q3:0,max:0}; const a=[...arr].sort((x,y)=>x-y), q=p=>a[Math.floor((a.length-1)*p)]; return {min:a[0],q1:q(.25),median:q(.5),q3:q(.75),max:a[a.length-1]}; };
-    try{ chartKDA?.destroy(); chartKDA=new Chart($("#chart-kda"),{ type:"boxplot", data:{ labels:["KDA"], datasets:[{ data:[bp(kds)] }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }}); }
-    catch{ const bins=[0,1,2,3,4,5,7,10], hist=new Array(bins.length-1).fill(0); kds.forEach(v=>{ for(let i=0;i<bins.length-1;i++) if(v>=bins[i] && v<bins[i+1]){ hist[i]++; break; } });
-      chartKDA?.destroy(); chartKDA=new Chart($("#chart-kda"),{ type:"bar", data:{ labels:bins.slice(0,-1).map((b,i)=>`${b}–${bins[i+1]}`), datasets:[{ data:hist }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
+    var C=chartColors();
+
+    var wins=items.filter(function(m){return m.win;}).length, losses=items.length-wins;
+    if(chartWin) chartWin.destroy();
+    chartWin=new Chart(qs("#chart-winrate"), { type:"doughnut", data:{ labels:["승","패"], datasets:[{ data:[wins,losses] }] }, options:{ plugins:{legend:{ labels:{ color:C.text }}}}});
+
+    var roles=["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"], counts=roles.map(function(r){ return items.filter(function(x){return (x.role||"").toUpperCase()===r;}).length; });
+    if(chartRoles) chartRoles.destroy();
+    chartRoles=new Chart(qs("#chart-roles"),{ type:"bar", data:{ labels:roles, datasets:[{ data:counts }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
+
+    var sorted=items.slice().sort(function(a,b){ return (a.timestamp||0)-(b.timestamp||0); }), cum=0;
+    var lab=sorted.map(function(m){ return new Date(m.timestamp||0).toLocaleDateString(); });
+    var dat=sorted.map(function(m,i){ if(m.win) cum++; return Math.round(cum/(i+1)*100); });
+    if(chartTrend) chartTrend.destroy();
+    chartTrend=new Chart(qs("#chart-trend"),{ type:"line", data:{ labels:lab, datasets:[{ data:dat }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
+
+    var N=Math.min(Math.max(parseInt(topNEl.value||"7",10),3),15), by={}, i;
+    for(i=0;i<items.length;i++){ var c=items[i].champion||"Unknown"; if(!by[c]) by[c]={g:0,w:0}; by[c].g++; if(items[i].win) by[c].w++; }
+    var champs=Object.keys(by).map(function(k){return [k,by[k]];}).sort(function(a,b){return b[1].g-a[1].g;}).slice(0,N);
+    if(chartChamps) chartChamps.destroy();
+    chartChamps=new Chart(qs("#chart-champs"),{ type:"bar", data:{ labels:champs.map(function(x){return x[0];}), datasets:[{ data:champs.map(function(x){var s=x[1]; return Math.round(s.w/s.g*100); }) }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
+
+    var kds=items.map(function(m){ var mch=(m.kda||'').match(/^(\d+)\/(\d+)\/(\d+)/)||[]; var k=+mch[1]||0, d=+mch[2]||0, a=+mch[3]||0; return d===0?(k+a):(k+a)/d; }).filter(function(v){return isFinite(v);});
+    function bp(arr){ if(!arr.length) return {min:0,q1:0,median:0,q3:0,max:0}; var a=arr.slice().sort(function(x,y){return x-y;}), q=function(p){ return a[Math.floor((a.length-1)*p)]; }; return {min:a[0],q1:q(.25),median:q(.5),q3:q(.75),max:a[a.length-1]}; }
+    try{
+      if(chartKDA) chartKDA.destroy();
+      chartKDA=new Chart(qs("#chart-kda"),{ type:"boxplot", data:{ labels:["KDA"], datasets:[{ data:[bp(kds)] }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
+    }catch(e){
+      var bins=[0,1,2,3,4,5,7,10], hist=new Array(bins.length-1); for(i=0;i<hist.length;i++) hist[i]=0;
+      kds.forEach(function(v){ for(i=0;i<bins.length-1;i++){ if(v>=bins[i] && v<bins[i+1]){ hist[i]++; break; } } });
+      if(chartKDA) chartKDA.destroy();
+      chartKDA=new Chart(qs("#chart-kda"),{ type:"bar", data:{ labels:bins.slice(0,-1).map(function(b,ii){return b+"–"+bins[ii+1];}), datasets:[{ data:hist }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
     }
-    // Role trend
-    const roleSeries={}; const labels2=sorted.map(m=> new Date(m.timestamp||0).toLocaleDateString()); const R=["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"];
-    for(const r of R) roleSeries[r]={cum:0,cnt:0,ys:[]};
-    for(const m of sorted){ const r=(m.role||"").toUpperCase(); for(const rr of R){ if(rr===r){ roleSeries[rr].cnt++; if(m.win) roleSeries[rr].cum++; } roleSeries[rr].ys.push(roleSeries[rr].cnt? Math.round(roleSeries[rr].cum/roleSeries[rr].cnt*100) : null); } }
-    chartRoleTrend?.destroy(); chartRoleTrend=new Chart($("#chart-role-trend"),{ type:"line", data:{ labels:labels2, datasets:R.map(rr=>({ label:rr, data: roleSeries[rr].ys, spanGaps:true })) }, options:{ plugins:{legend:{display:true}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
-    // Heatmap (플러그인 없으면 막대/테이블로 폴백)
-    const queues=["RANKED_SOLO_5x5","RANKED_FLEX_SR","ARAM","NORMAL"];
-    const topMap={}; for(const m of items){ const c=m.champion||"Unknown"; topMap[c]=(topMap[c]||0)+1; }
-    const topChamps=Object.entries(topMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([c])=>c);
-    const kdaBy={}; for(const c of topChamps){ kdaBy[c]={}; for(const q of queues) kdaBy[c][q]=[]; }
-    for(const m of items){ const c=m.champion||"Unknown"; if(!topChamps.includes(c)) continue; const q=(m.queueType|| (m.gameMode==="CLASSIC" ? "NORMAL" : "NORMAL")); const [k,d,a]=(m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(n=>+n||0); const v=d===0?(k+a):(k+a)/d; kdaBy[c][queues.includes(q)?q:"NORMAL"].push(v); }
-    const axes=heatAxesSel.value; let xL=[],yL=[], dataMat=[];
-    if(axes==="champ-queue"){ xL=queues; yL=topChamps; topChamps.forEach((c,y)=>queues.forEach((q,x)=>{ const arr=kdaBy[c][q]; const val=arr.length? Math.round(arr.reduce((s,v)=>s+v,0)/arr.length*100)/100 : 0; dataMat.push({x,y,v:val}); })); }
-    else { xL=topChamps; yL=queues; queues.forEach((q,y)=>topChamps.forEach((c,x)=>{ const arr=kdaBy[c][q]; const val=arr.length? Math.round(arr.reduce((s,v)=>s+v,0)/arr.length*100)/100 : 0; dataMat.push({x,y,v:val}); })); }
-    const hasMatrix = !!Chart.registry.getController?.("matrix");
+
+    var queues=["RANKED_SOLO_5x5","RANKED_FLEX_SR","ARAM","NORMAL"];
+    var topMap={}, m;
+    for(i=0;i<items.length;i++){ m=items[i]; topMap[m.champion||"Unknown"]=(topMap[m.champion||"Unknown"]||0)+1; }
+    var topChamps=Object.keys(topMap).map(function(k){return [k,topMap[k]];}).sort(function(a,b){return b[1]-a[1];}).slice(0,10).map(function(x){return x[0];});
+    var kdaBy={}, ci, qi;
+    for(ci=0;ci<topChamps.length;ci++){ var cc=topChamps[ci]; kdaBy[cc]={}; for(qi=0;qi<queues.length;qi++) kdaBy[cc][queues[qi]]=[]; }
+    for(i=0;i<items.length;i++){
+      m=items[i]; var ccc=m.champion||"Unknown"; if(topChamps.indexOf(ccc)===-1) continue;
+      var q=(m.queueType || (m.gameMode==="CLASSIC" ? "NORMAL" : "NORMAL")); var mch2=(m.kda||'').match(/^(\d+)\/(\d+)\/(\d+)/)||[]; var kk=+mch2[1]||0, dd=+mch2[2]||0, aa=+mch2[3]||0; var val= dd===0 ? (kk+aa) : (kk+aa)/dd;
+      if(queues.indexOf(q)===-1) q="NORMAL"; kdaBy[ccc][q].push(val);
+    }
+    var axes=heatAxesSel.value, dataMat=[], xL=[], yL=[];
+    function avg(arr){ if(!arr.length) return 0; var s=0; for(var t=0;t<arr.length;t++) s+=arr[t]; return Math.round((s/arr.length)*100)/100; }
+    if(axes==="champ-queue"){
+      xL=queues; yL=topChamps;
+      yL.forEach(function(cy, y){ xL.forEach(function(qx, x){ dataMat.push({x:x,y:y,v:avg(kdaBy[cy][qx])}); }); });
+    } else {
+      xL=topChamps; yL=queues;
+      yL.forEach(function(qy, y){ xL.forEach(function(cx, x){ dataMat.push({x:x,y:y,v:avg(kdaBy[cx][qy])}); }); });
+    }
+    var hasMatrix = Chart.registry && Chart.registry.getController && Chart.registry.getController("matrix");
     try{
       if(!hasMatrix) throw new Error("matrix plugin not loaded");
-      chartHeatmap?.destroy(); chartHeatmap=new Chart($("#chart-heatmap"),{
+      if(chartHeatmap) chartHeatmap.destroy();
+      chartHeatmap=new Chart(qs("#chart-heatmap"),{
         type:"matrix",
-        data:{ datasets:[{ data:dataMat, width:({chart})=>(chart.chartArea?.width||360)/xL.length-6, height:({chart})=>(chart.chartArea?.height||200)/yL.length-6, backgroundColor: ctx => chartColors().heat(ctx.raw.v||0), borderColor:chartColors().grid, borderWidth:1 }]},
-        options:{ plugins:{legend:{display:false}, tooltip:{ callbacks:{ title:(it)=>`${yL[it[0].raw.y]} × ${xL[it[0].raw.x]}`, label:(it)=>`KDA ${it.raw.v}` } } }, scales:{ x:{ ticks:{ color:chartColors().text, callback:(v)=>xL[v] }, grid:{ display:false } }, y:{ ticks:{ color:chartColors().text, callback:(v)=>yL[v] }, grid:{ display:false } } }
+        data:{ datasets:[{ data:dataMat, width:function(ctx){ var w=(ctx.chart.chartArea&&ctx.chart.chartArea.width)||360; return w/xL.length-6; }, height:function(ctx){ var h=(ctx.chart.chartArea&&ctx.chart.chartArea.height)||200; return h/yL.length-6; }, backgroundColor:function(ctx){ var v=ctx.raw.v||0; return chartColors().heat(v); }, borderColor:chartColors().grid, borderWidth:1 }]},
+        options:{ plugins:{legend:{display:false}, tooltip:{ callbacks:{ title:function(it){ return yL[it[0].raw.y]+" × "+xL[it[0].raw.x]; }, label:function(it){ return "KDA "+it.raw.v; } } } }, scales:{ x:{ ticks:{ color:chartColors().text, callback:function(v){ return xL[v]; } }, grid:{ display:false } }, y:{ ticks:{ color:chartColors().text, callback:function(v){ return yL[v]; } }, grid:{ display:false } } }
       });
-    }catch{
-      // 폴백: 챔프 × 큐 평균 KDA를 그룹 막대로 표시
-      const grp = {}; for(const d of dataMat){ const key = `${yL[d.y]}`; (grp[key]||(grp[key]=[]))[d.x] = d.v; }
-      const labels = Object.keys(grp);
-      const datasets = xL.map((x,i)=>({ label:x, data:labels.map(l=> grp[l]?.[i] ?? 0) }));
-      chartHeatmap?.destroy(); chartHeatmap=new Chart($("#chart-heatmap"),{ type:"bar", data:{ labels, datasets }, options:{ responsive:true, plugins:{legend:{display:true}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } });
+    }catch(e){
+      var grp={}, d; for(i=0;i<dataMat.length;i++){ d=dataMat[i]; var key = ''+yL[d.y]; (grp[key]||(grp[key]=[]))[d.x]=d.v; }
+      var labels = Object.keys(grp);
+      var datasets = xL.map(function(x,ix){ return { label:x, data: labels.map(function(l){ return (grp[l] && grp[l][ix]) ? grp[l][ix] : 0; }) }; });
+      if(chartHeatmap) chartHeatmap.destroy();
+      chartHeatmap=new Chart(qs("#chart-heatmap"),{ type:"bar", data:{ labels:labels, datasets:datasets }, options:{ responsive:true, plugins:{legend:{display:true}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } });
     }
 
-    // Hourly
-    const byHour=Array.from({length:24},()=>({w:0,c:0}));
-    for(const m of items){ const h=new Date(m.timestamp||0).getHours(); byHour[h].c++; if(m.win) byHour[h].w++; }
-    const wr=byHour.map(x=> x.c ? Math.round(x.w/x.c*100) : 0);
-    chartHourly?.destroy(); chartHourly=new Chart($("#chart-hourly"),{ type:"bar", data:{ labels:[...Array(24).keys()].map(h=>`${h}:00`), datasets:[{ data:wr }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
+    var byHour=[], h; for(h=0;h<24;h++) byHour.push({w:0,c:0});
+    items.forEach(function(m2){ var hh=new Date(m2.timestamp||0).getHours(); byHour[hh].c++; if(m2.win) byHour[hh].w++; });
+    var wr=byHour.map(function(x){ return x.c ? Math.round(x.w/x.c*100) : 0; });
+    if(chartHourly) chartHourly.destroy();
+    chartHourly=new Chart(qs("#chart-hourly"),{ type:"bar", data:{ labels: Array(24).fill(0).map(function(_,i){return i+":00";}), datasets:[{ data:wr }] }, options:{ plugins:{legend:{display:false}}, scales:{x:{ticks:{color:C.text}}, y:{ticks:{color:C.text}} } }});
 
-    // 사이드
-    renderItemsCloud(items); renderItemClusters(items); renderRoleKDATable(items);
+    renderItemsCloud(items);
+    renderItemClusters(items);
+    renderRoleKDATable(items);
   }
 
-  function renderList(data, filter=currentFilter){
-    const s=data.summoner||{}, r=data.rank||{}; let items=data.summary||[];
-    if(filter!=="ALL"){ items=items.filter(m=>{ if(filter==="RANKED_SOLO_5x5") return m.queueType==="RANKED_SOLO_5x5"; if(filter==="RANKED_FLEX_SR") return m.queueType==="RANKED_FLEX_SR"; if(filter==="NORMAL") return m.gameMode==="CLASSIC" && !m.queueType; if(filter==="ARAM") return m.gameMode==="ARAM"; return true; }); }
-    if(Array.isArray(window._accum)) items=[...window._accum, ...items];
+  function renderList(data, filter){
+    filter = filter || currentFilter;
+    var s=data.summoner||{}, r=data.rank||{}; var items=data.summary||[];
+    if(filter!=="ALL"){
+      items = items.filter(function(m){
+        if(filter==="RANKED_SOLO_5x5") return m.queueType==="RANKED_SOLO_5x5";
+        if(filter==="RANKED_FLEX_SR") return m.queueType==="RANKED_FLEX_SR";
+        if(filter==="NORMAL") return m.gameMode==="CLASSIC" && !m.queueType;
+        if(filter==="ARAM") return m.gameMode==="ARAM";
+        return true;
+      });
+    }
+    if(Array.isArray(window._accum)) items=[].concat(window._accum, items);
 
     renderKPIs(items);
 
-    const list = items.map(m=>{
-      const champ=m.champion??"-"; const icon=`https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VER}/img/champion/${champ}.png`;
-      return `<li class="flex gap-3 items-center p-3 rounded-xl border" style="border-color:var(--line)">
-        <img src="${icon}" alt="${safe(champ)}" class="w-10 h-10 rounded-lg" onerror="this.style.display='none'">
-        <div class="flex-1 min-w-0">
-          <div class="truncate"><b>${m.win?"승":"패"}</b> · ${safe(m.gameMode||"-")} · ${safe(champ)} · <span class="muted">${timeAgo(m.timestamp)}</span></div>
-          <div class="muted text-sm knum">KDA ${safe(m.kda)} · CS ${safe(m.cs??0)} · ${fmtT(m.time||0)}</div>
-        </div>
-      </li>`;
+    var list = items.map(function(m){
+      var champ=m.champion||"-"; var icon="https://ddragon.leagueoflegends.com/cdn/"+DDRAGON_VER+"/img/champion/"+champ+".png";
+      return '<li class="flex gap-3 items-center p-3 rounded-xl border" style="border-color:var(--line)">'+
+             '<img src="'+icon+'" alt="'+safe(champ)+'" class="w-10 h-10 rounded-lg" onerror="this.style.display=\'none\'">'+
+             '<div class="flex-1 min-w-0">'+
+             '<div class="truncate"><b>'+(m.win?"승":"패")+'</b> · '+safe(m.gameMode||"-")+' · '+safe(champ)+' · <span class="muted">'+timeAgo(m.timestamp)+'</span></div>'+
+             '<div class="muted text-sm knum">KDA '+safe(m.kda)+' · CS '+safe(m.cs||0)+' · '+fmtT(m.time||0)+'</div>'+
+             '</div></li>';
     }).join("");
 
     window._raw=data; window._accum=items;
-    out.innerHTML = `
-      <div class="flex items-start justify-between gap-3 mb-3">
-        <div><h2 class="text-xl font-extrabold">${safe(s.name||"-")}</h2><div class="muted text-sm">${T("cached")}</div></div>
-        <div class="grid grid-cols-2 gap-2 min-w-[240px]">
-          <div class="p-2 rounded-xl border" style="border-color:var(--line)"><div class="muted text-xs mb-1">솔로랭크</div><div class="text-sm">${rankLine(r.solo)}</div></div>
-          <div class="p-2 rounded-xl border" style="border-color:var(--line)"><div class="muted text-xs mb-1">자유랭크</div><div class="text-sm">${rankLine(r.flex)}</div></div>
-        </div>
-      </div>
-      <ul class="space-y-2">${list || `<li class="muted">${T("empty")}</li>`}</ul>
-    `;
+    out.innerHTML =
+      '<div class="flex items-start justify-between gap-3 mb-3">'+
+        '<div><h2 class="text-xl font-extrabold">'+safe(s.name||"-")+'</h2><div class="muted text-sm">'+T("cached")+'</div></div>'+
+        '<div class="grid grid-cols-2 gap-2 min-w-[240px]">'+
+          '<div class="p-2 rounded-xl border" style="border-color:var(--line)"><div class="muted text-xs mb-1">솔로랭크</div><div class="text-sm">'+rankLine(r.solo)+'</div></div>'+
+          '<div class="p-2 rounded-xl border" style="border-color:var(--line)"><div class="muted text-xs mb-1">자유랭크</div><div class="text-sm">'+rankLine(r.flex)+'</div></div>'+
+        '</div>'+
+      '</div>'+
+      '<ul class="space-y-2">'+(list || '<li class="muted">'+T("empty")+'</li>')+'</ul>';
 
     renderCharts(items);
     moreBtn.disabled=false;
   }
 
-  /* ========= Events ========= */
-  form.addEventListener("submit", async (e)=>{
+  /* ==== Events ==== */
+  form.addEventListener("submit", function(e){
     e.preventDefault();
-    const name=(input.value||"").trim(); if(!name) return;
+    var name=(input.value||"").trim(); if(!name) return;
     currentName=name; loadedCount=0; window._accum=[]; renderLoading();
-    try{ const data=await fetchProfile(name,5,currentFilter,0); loadedCount+=(data.summary||[]).length; renderList(data); }
-    catch(err){ renderError(T("errLoad"), String(err?.message||err)); }
+    fetchProfile(name,5,currentFilter,0).then(function(data){
+      loadedCount += (data.summary||[]).length; renderList(data);
+    }).catch(function(err){
+      renderError(T("errLoad"), String(err && err.message ? err.message : err));
+    });
   });
 
-  filterBar.addEventListener("click",(e)=>{ const b=e.target.closest("[data-filter]"); if(!b) return; currentFilter=b.dataset.filter; setChips(); if(window._raw) renderList(window._raw,currentFilter); });
-
-  topNEl.addEventListener("change", ()=>{ if(window._accum?.length) renderCharts(window._accum); });
-  heatAxesSel.addEventListener("change", ()=>{ localStorage.setItem(STORAGE.heatAxes, heatAxesSel.value); if(window._accum) renderCharts(window._accum); });
-
-  moreBtn.addEventListener("click", async ()=>{
-    if(!currentName) return; moreBtn.disabled=true;
-    try{ const data=await fetchProfile(currentName,5,currentFilter,loadedCount); loadedCount+=(data.summary||[]).length; if(window._accum) data.summary=[...window._accum, ...(data.summary||[])]; renderList(data); }
-    catch(err){ renderError(T("errLoad"), String(err?.message||err)); }
-    finally{ moreBtn.disabled=false; }
-  });
-
-  healthBtn.addEventListener("click", async ()=>{
-    healthState.textContent="확인 중…";
-    try{ const r=await fetch(`${API_BASE}/health`); const t=await r.text(); healthState.textContent= r.ok? `OK: ${t}` : `ERR ${r.status}: ${t}`; }
-    catch(e){ healthState.textContent = "요청 실패: "+(e?.message||e); }
-  });
-
-  // menu actions
-  document.getElementById("btn-save-charts").addEventListener("click", ()=>{
-    (document.querySelectorAll("canvas")||[]).forEach((cv,i)=>{ try{ const url=cv.toDataURL("image/png"); const a=document.createElement("a"); a.href=url; a.download=`thunder_chart_${i+1}.png`; document.body.appendChild(a); a.click(); a.remove(); }catch{} });
-  });
-  document.getElementById("btn-export").addEventListener("click", ()=>{
-    if(!window._accum?.length) return;
-    const header=["matchId","mode","queue","champion","win","k","d","a","kda","cs","timeSec","timestamp","role","items"];
-    const rows=window._accum.map(m=>{ const [k,d,a]=(m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4); return [m.gameId,m.gameMode,m.queueType,m.champion,m.win?1:0,k||0,d||0,a||0,(m.kda||"").split(" ").slice(-1)[0],m.cs||0,m.time||0,m.timestamp||0,m.role||"", (m.items||[]).join("|")]; });
-    const csv=[header,...rows].map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(",")).join("\n");
-    const blob=new Blob([csv],{type:"text/csv;charset=utf-8"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`thunder_${(currentName||"player").replace(/\W+/g,"_")}.csv`; a.click(); URL.revokeObjectURL(url);
-  });
-  document.getElementById("btn-share").addEventListener("click", async ()=>{
-    const u=new URL(location.href); if(currentName) u.searchParams.set("q", currentName); u.searchParams.set("queue", currentFilter);
-    try{ if(navigator.share) await navigator.share({ title:"Thunder", url:u.toString() }); else { await navigator.clipboard.writeText(u.toString()); alert("링크 복사됨"); } }catch{}
-  });
-  document.getElementById("btn-chart-theme").addEventListener("click", ()=>{
-    CHART_THEME = CHART_THEME==="auto" ? "dark" : CHART_THEME==="dark" ? "light" : "auto";
-    localStorage.setItem(STORAGE.chartTheme, CHART_THEME); document.getElementById("chart-theme-code").textContent = CHART_THEME.toUpperCase();
-    applyChartDefaults(); if(window._accum) renderCharts(window._accum);
-  });
-  document.getElementById("btn-lang").addEventListener("click", ()=>{
-    LANG = LANG==="en" ? "ko" : "en"; localStorage.setItem(STORAGE.lang, LANG); document.getElementById("lang-code").textContent = LANG.toUpperCase();
+  filterBar.addEventListener("click", function(e){
+    var b=e.target.closest ? e.target.closest("[data-filter]") : null; 
+    if(!b) return;
+    currentFilter=b.getAttribute("data-filter"); setChips();
     if(window._raw) renderList(window._raw,currentFilter);
   });
 
-  /* ========= Init from URL ========= */
-  (function initFromURL(){
-    const p=new URL(location.href).searchParams;
-    const q=p.get("q"); const queue=p.get("queue");
-    if(queue){ currentFilter=queue.toUpperCase(); setChips(); }
-    if(q){ input.value=q; form.requestSubmit?.() || form.dispatchEvent(new Event("submit")); } else { setChips(); }
+  topNEl.addEventListener("change", function(){ if(window._accum && window._accum.length) renderCharts(window._accum); });
+  heatAxesSel.addEventListener("change", function(){ localStorage.setItem(STORAGE.heatAxes, heatAxesSel.value); if(window._accum) renderCharts(window._accum); });
+
+  qsa("#btn-save-charts,#btn-export,#btn-share,#btn-chart-theme,#btn-lang").forEach(function(btn){
+    btn.addEventListener("click", function(ev){
+      var id = ev.currentTarget.id;
+      if(id==="btn-save-charts"){
+        qsa("canvas").forEach(function(cv,i){ try{ var url=cv.toDataURL("image/png"); var a=document.createElement("a"); a.href=url; a.download="thunder_chart_"+(i+1)+".png"; document.body.appendChild(a); a.click(); a.remove(); }catch(e){} });
+      } else if(id==="btn-export"){
+        if(!(window._accum && window._accum.length)) return;
+        var header=["matchId","mode","queue","champion","win","k","d","a","kda","cs","timeSec","timestamp","role","items"];
+        var rows=window._accum.map(function(m){ var mch=(m.kda||'').match(/^(\d+)\/(\d+)\/(\d+)/)||[]; var k=+mch[1]||0, d=+mch[2]||0, a=+mch[3]||0; return [m.gameId,m.gameMode,m.queueType,m.champion,m.win?1:0,k,d,a,(m.kda||"").split(" ").slice(-1)[0],m.cs||0,m.time||0,m.timestamp||0,m.role||"", (m.items||[]).join("|")]; });
+        var csv=[header].concat(rows).map(function(r){ return r.map(function(x){ return '"'+String(x).replace(/"/g,'""')+'"'; }).join(","); }).join("\n");
+        var blob=new Blob([csv],{type:"text/csv;charset=utf-8"}); var url=URL.createObjectURL(blob); var a=document.createElement("a"); a.href=url; a.download="thunder_"+(currentName||"player").replace(/\W+/g,"_")+".csv"; a.click(); URL.revokeObjectURL(url);
+      } else if(id==="btn-share"){
+        var u=new URL(location.href); if(currentName) u.searchParams.set("q", currentName); u.searchParams.set("queue", currentFilter);
+        try{ if(navigator.share) navigator.share({ title:"Thunder", url:u.toString() }); else { navigator.clipboard.writeText(u.toString()); alert("링크 복사됨"); } }catch(e){}
+      } else if(id==="btn-chart-theme"){
+        CHART_THEME = CHART_THEME==="auto" ? "dark" : (CHART_THEME==="dark" ? "light" : "auto");
+        localStorage.setItem(STORAGE.chartTheme, CHART_THEME); qs("#chart-theme-code").textContent = CHART_THEME.toUpperCase();
+        applyChartDefaults(); if(window._accum) renderCharts(window._accum);
+      } else if(id==="btn-lang"){
+        LANG = (LANG==="en") ? "ko" : "en"; localStorage.setItem(STORAGE.lang, LANG); qs("#lang-code").textContent = LANG.toUpperCase();
+        if(window._raw) renderList(window._raw,currentFilter);
+      }
+    });
+  });
+
+  moreBtn.addEventListener("click", function(){
+    if(!currentName) return; moreBtn.disabled=true;
+    fetchProfile(currentName,5,currentFilter,loadedCount).then(function(data){
+      loadedCount += (data.summary||[]).length;
+      if(window._accum) data.summary=[].concat(window._accum, (data.summary||[]));
+      renderList(data);
+    }).catch(function(err){
+      renderError(T("errLoad"), String(err && err.message ? err.message : err));
+    }).finally ? null : null;
+    // (finally 미사용: ES5 호환)
+    setTimeout(function(){ moreBtn.disabled=false; }, 600);
+  });
+
+  healthBtn.addEventListener("click", function(){
+    healthState.textContent="확인 중…";
+    fetch(API_BASE+"/health").then(function(r){ return r.text().then(function(t){ return {ok:r.ok, status:r.status, text:t}; }); })
+      .then(function(p){ healthState.textContent = p.ok ? ("OK: "+p.text) : ("ERR "+p.status+": "+p.text); })
+      .catch(function(e){ healthState.textContent = "요청 실패: "+(e && e.message ? e.message : e); });
+  });
+
+  /* ==== Init from URL ==== */
+  (function(){
+    var p=new URL(location.href).searchParams;
+    var q=p.get("q"); var queue=p.get("queue");
+    if(queue){ currentFilter=String(queue).toUpperCase(); setChips(); }
+    if(q){ input.value=q; try{ if(form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event("submit")); }catch(e){ form.dispatchEvent(new Event("submit")); } }
+    else { setChips(); }
   })();
   </script>
 </body>
