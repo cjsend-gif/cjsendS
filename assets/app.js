@@ -1,4 +1,4 @@
-/* assets/app.js — heatmap axis swap + item clustering + role KDA table + auto chart theme + (기존) charts/compare/export/pagination/i18n/theme */
+/* assets/app.js — 모든 확장 + 플러그인 실패시 박스플롯 대체까지 포함 */
 const API_BASE = "https://cjsend.erickparkcha.workers.dev";
 const STORAGE = {
   hist:"thunder_recent_searches",
@@ -56,11 +56,7 @@ applyBrandTheme();
 // Chart Theme (auto/dark/light)
 let CHART_THEME = localStorage.getItem(STORAGE.chartTheme) || "auto"; // auto|dark|light
 const mediaDark = window.matchMedia?.("(prefers-color-scheme: dark)");
-function isDarkMode(){
-  if (CHART_THEME === "dark") return true;
-  if (CHART_THEME === "light") return false;
-  return !!mediaDark?.matches;
-}
+function isDarkMode(){ if (CHART_THEME === "dark") return true; if (CHART_THEME === "light") return false; return !!mediaDark?.matches; }
 function chartColors(){
   const dark = isDarkMode();
   return {
@@ -184,8 +180,7 @@ function clusterBuilds(items){
   for (const b of builds){
     let placed=false;
     for (const c of clusters){
-      if (sim(c.rep, b) >= 0.5){ c.items.push(b); // 합류
-        // 대표 갱신: 최빈 아이템 Top6
+      if (sim(c.rep, b) >= 0.5){ c.items.push(b);
         const f={}; for(const arr of c.items) for(const id of arr) f[id]=(f[id]||0)+1;
         c.rep = Object.entries(f).sort((x,y)=>y[1]-x[1]).map(([id])=>+id).slice(0,6);
         placed=true; break;
@@ -193,7 +188,6 @@ function clusterBuilds(items){
     }
     if(!placed) clusters.push({ rep:[...b], items:[b] });
   }
-  // 정렬: 클러스터 크기 desc
   return clusters.sort((a,b)=> b.items.length - a.items.length);
 }
 async function renderItemClusters(items){
@@ -271,20 +265,35 @@ function renderCharts(items){
     options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:colors.text} }, y:{ ticks:{ color:colors.text} } } }
   });
 
-  // KDA boxplot
+  // KDA boxplot (플러그인 없을 시 히스토그램 대체)
   const kdas = items.map(m=>{
     const [k,d,a] = (m.kda?.match(/^(\d+)\/(\d+)\/(\d+)/)||[]).slice(1,4).map(x=>parseInt(x||"0",10));
     const v = d===0 ? (k+a) : (k+a)/d; return Number.isFinite(v)? v : 0;
   }).filter(x=>x>=0);
   const bp = (arr)=>{ if(!arr.length) return {min:0,q1:0,median:0,q3:0,max:0}; const a=[...arr].sort((x,y)=>x-y); const q=p=>a[Math.floor((a.length-1)*p)]; return {min:a[0],q1:q(0.25),median:q(0.5),q3:q(0.75),max:a[a.length-1] }; }
-  chartKDA?.destroy();
-  chartKDA = new Chart($("#chart-kda"), {
-    type: "boxplot",
-    data: { labels:["KDA"], datasets:[{ data:[bp(kdas)] }] },
-    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:colors.text} }, y:{ ticks:{ color:colors.text} } } }
-  });
+  try{
+    chartKDA?.destroy();
+    chartKDA = new Chart($("#chart-kda"), {
+      type: "boxplot",
+      data: { labels:["KDA"], datasets:[{ data:[bp(kdas)] }] },
+      options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:colors.text} }, y:{ ticks:{ color:colors.text} } } }
+    });
+  } catch (e) {
+    console.warn("Boxplot unavailable, fallback to histogram:", e);
+    const bins = [0,1,2,3,4,5,7,10];
+    const hist = new Array(bins.length - 1).fill(0);
+    kdas.forEach(v=>{ for (let i=0;i<bins.length-1;i++) if (v>=bins[i] && v<bins[i+1]) { hist[i]++; return; }});
+    const labels = bins.slice(0,-1).map((b,i)=> `${b}–${bins[i+1]}`);
+    chartKDA?.destroy();
+    chartKDA = new Chart($("#chart-kda"), {
+      type: "bar",
+      data: { labels, datasets: [{ data: hist }] },
+      options: { plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:colors.text} }, y:{ ticks:{ color:colors.text} } } }
+    });
+  }
 
   // Role-wise trend
+  const roles = ["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"];
   const roleSeries = {}; const timeLabels = sorted.map(m=> new Date(m.timestamp||0).toLocaleDateString());
   for (const r of roles) roleSeries[r] = { cum:0, cnt:0, ys:[] };
   for (const m of sorted){
@@ -303,13 +312,10 @@ function renderCharts(items){
 
   // Heatmap (axes toggle)
   const queues = ["RANKED_SOLO_5x5","RANKED_FLEX_SR","ARAM","NORMAL"];
-  const topMap = {}; // champ -> count
-  for (const m of items){ const c = m.champion || "Unknown"; topMap[c]=(topMap[c]||0)+1; }
+  const topMap = {}; for (const m of items){ const c = m.champion || "Unknown"; topMap[c]=(topMap[c]||0)+1; }
   const topChamps = Object.entries(topMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([c])=>c);
 
-  // avg KDA by champ,queue
-  const kdaBy = {};
-  for (const c of topChamps){ kdaBy[c]={}; for (const q of queues) kdaBy[c][q]=[]; }
+  const kdaBy = {}; for (const c of topChamps){ kdaBy[c]={}; for (const q of queues) kdaBy[c][q]=[]; }
   for (const m of items){
     const c=m.champion||"Unknown"; if(!topChamps.includes(c)) continue;
     const q=(m.queueType|| (m.gameMode==="CLASSIC" ? "NORMAL" : "NORMAL"));
@@ -319,7 +325,6 @@ function renderCharts(items){
     kdaBy[c][key].push(v);
   }
 
-  // build matrix
   const cfun = colors.heatCell;
   const dataMatrix = [];
   let xLabels=[], yLabels=[];
@@ -329,7 +334,7 @@ function renderCharts(items){
       const arr=kdaBy[c][q]; const val=arr.length? Math.round((arr.reduce((s,v)=>s+v,0)/arr.length)*100)/100 : 0;
       dataMatrix.push({ x, y, v:val });
     }));
-  } else { // queue-champ
+  } else {
     xLabels = topChamps; yLabels = queues;
     queues.forEach((q,y)=> topChamps.forEach((c,x)=>{
       const arr=kdaBy[c][q]; const val=arr.length? Math.round((arr.reduce((s,v)=>s+v,0)/arr.length)*100)/100 : 0;
