@@ -516,17 +516,22 @@
   });
 
   moreBtn.addEventListener("click", function(){
-    if(!currentName) return; moreBtn.disabled=true;
-    fetchProfile(currentName,5,currentFilter,loadedCount).then(function(data){
-      loadedCount += (data.summary||[]).length;
-      if(window._accum) data.summary=[].concat(window._accum, (data.summary||[]));
+  if(!currentName) return;
+  moreBtn.disabled = true;
+  fetchProfile(currentName, 5, currentFilter, loadedCount)
+    .then(function(data){
+      loadedCount += (data.summary || []).length;
+      if (window._accum) data.summary = [].concat(window._accum, (data.summary || []));
       renderList(data);
-    }).catch(function(err){
+    })
+    .catch(function(err){
       renderError(T("errLoad"), String(err && err.message ? err.message : err));
-    }).finally ? null : null;
-    // (finally 미사용: ES5 호환)
-    setTimeout(function(){ moreBtn.disabled=false; }, 600);
-  });
+    })
+    .then(function(){
+      // finally 대체
+      moreBtn.disabled = false;
+    });
+});
 
   healthBtn.addEventListener("click", function(){
     healthState.textContent="확인 중…";
