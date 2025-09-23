@@ -23,6 +23,7 @@
   <!-- Charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-boxplot@4.4.0/build/index.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
 
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' x='6' font-size='56'%3E%E2%9A%A1%EF%B8%8F%3C/text%3E%3C/svg%3E" />
 
@@ -54,6 +55,7 @@
       <div class="flex items-center gap-2">
         <button id="btn-share" class="pill" title="Share">🔗</button>
         <button id="btn-export" class="pill" title="Export CSV">📄</button>
+        <button id="btn-save-charts" class="pill" title="Save Charts PNG">📷</button>
         <button id="btn-theme" class="pill" title="Theme">🎨</button>
         <button id="btn-lang" class="pill" title="Language">🌐 <span id="lang-code" class="ml-1 text-xs">KO</span></button>
       </div>
@@ -78,7 +80,7 @@
           <button id="btn-compare" class="btn pill bg-white/10 hover:bg-white/20">비교</button>
         </div>
       </details>
-      <p class="muted text-sm" data-i18n="searchHint">최근 5판 기반 KDA/승패/챔프/모드/시간과 랭크 정보를 제공합니다.</p>
+      <p class="muted text-sm" data-i18n="searchHint">최근 5판 기반 KDA/승패/챔피언/모드/시간과 랭크 정보를 제공합니다.</p>
     </section>
 
     <!-- Filters -->
@@ -101,21 +103,24 @@
     <!-- Stats (Advanced) -->
     <section id="stats" class="card p-5 hidden">
       <h3 class="text-base font-semibold mb-4" data-i18n="statsTitle">요약 통계</h3>
+
+      <!-- 1열: 승패/포지션/추이 -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div class="p-3 border border-border rounded-xl">
           <div class="muted mb-2" data-i18n="statWinrate">승률</div>
-          <canvas id="chart-winrate" width="360" height="180" aria-label="Winrate" role="img"></canvas>
+          <canvas id="chart-winrate" width="360" height="180"></canvas>
         </div>
         <div class="p-3 border border-border rounded-xl">
           <div class="muted mb-2" data-i18n="statRole">포지션 분포</div>
-          <canvas id="chart-roles" width="360" height="180" aria-label="Role distribution" role="img"></canvas>
+          <canvas id="chart-roles" width="360" height="180"></canvas>
         </div>
         <div class="p-3 border border-border rounded-xl">
           <div class="muted mb-2" data-i18n="statTrend">승률 추이(시간)</div>
-          <canvas id="chart-trend" width="360" height="180" aria-label="Winrate over time" role="img"></canvas>
+          <canvas id="chart-trend" width="360" height="180"></canvas>
         </div>
       </div>
 
+      <!-- 2열: 챔피언 성과, KDA 박스 -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         <div class="p-3 border border-border rounded-xl">
           <div class="flex items-center justify-between">
@@ -125,11 +130,34 @@
               <input id="topN" type="number" min="3" max="15" value="7" class="w-16 bg-[#0b1220] border border-border rounded px-2 py-1" />
             </div>
           </div>
-          <canvas id="chart-champs" width="360" height="220" aria-label="Top champions" role="img"></canvas>
+          <canvas id="chart-champs" width="360" height="220"></canvas>
         </div>
         <div class="p-3 border border-border rounded-xl">
           <div class="muted mb-2" data-i18n="statKDA">KDA 분포(박스플롯)</div>
-          <canvas id="chart-kda" width="360" height="220" aria-label="KDA distribution" role="img"></canvas>
+          <canvas id="chart-kda" width="360" height="220"></canvas>
+        </div>
+      </div>
+
+      <!-- 3열: 라인별 승률 추이, 챔피언 KDA 히트맵, 시간대별 승률, 아이템 빈도 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <div class="p-3 border border-border rounded-xl">
+          <div class="muted mb-2">라인별 승률 추이</div>
+          <canvas id="chart-role-trend" width="360" height="220"></canvas>
+        </div>
+        <div class="p-3 border border-border rounded-xl">
+          <div class="muted mb-2">챔피언 KDA 히트맵(Top 10 × 큐)</div>
+          <canvas id="chart-heatmap" width="360" height="220"></canvas>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <div class="p-3 border border-border rounded-xl">
+          <div class="muted mb-2">시간대별 승률(현지)</div>
+          <canvas id="chart-hourly" width="360" height="220"></canvas>
+        </div>
+        <div class="p-3 border border-border rounded-xl">
+          <div class="muted mb-2">아이템 빌드 빈도(Top 12)</div>
+          <div id="items-cloud" class="flex flex-wrap gap-2"></div>
         </div>
       </div>
     </section>
