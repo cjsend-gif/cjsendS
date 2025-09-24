@@ -1,21 +1,58 @@
 name: Update Rankings JSON
+
 on:
-  schedule:
-    - cron: "*/10 * * * *"   # 10분마다
   workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *' # 매시 정각(UTC). KST 매일 09:00라면 '0 0 * * *' 대신 원하는 시간대로 조정
+
+permissions:
+  contents: write  # 푸시하려면 꼭 필요
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Generate rankings.json (dummy)
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      # (선택) 패키지 있으면 설치
+      - name: Install deps (if lockfile exists)
+        if: ${{ hashFiles('package-lock.json') != '' }}
+        run: npm ci
+
+      # 방법 A: Node 스크립트로 업데이트
+      - name: Update rankings via Node script
+        env:
+          RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+          API_BASE: https://cjsend.erickparkcha.workers.dev
         run: |
-          mkdir -p data
-          node -e "const fs=require('fs'); const rows=[{rank:12,name:'PlayerOne#KR1',tier:'Challenger 545LP',role:'MID',champ:'Ahri',win:'56%'},{rank:233,name:'JungleKing#KR1',tier:'Grandmaster 320LP',role:'JUNGLE',champ:'Lee Sin',win:'58%'},{rank:4899,name:'MacroGod#KR1',tier:'Master 120LP',role:'SUPPORT',champ:'Bard',win:'54%'}]; fs.writeFileSync('data/rankings.json', JSON.stringify(rows,null,2));"
-      - name: Commit & push
+          set -euo pipefail
+          if [ -f scripts/update-rankings.mjs ]; then
+            node scripts/update-rankings.mjs
+          else
+            echo "scripts/update-rankings.mjs not found, fallback to curl"
+            mkdir -p public/data
+            curl -fsSL "$API_BASE/rankings" -o public/data/rankings.json
+          fi
+
+      # 커밋/푸시는 변경이 있을 때만
+      - name: Commit & push (if changed)
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add data/rankings.json
-          git commit -m "chore: update rankings.json" || echo "no changes"
-          git push
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore: update rankings JSON [skip ci]"
+            git push
+          else
+            echo "No changes to commit."
+          fi
