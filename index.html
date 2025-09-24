@@ -32,7 +32,7 @@
   <!-- Chart.js + plugins (정확한 dist 경로 고정) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4.4.0/dist/chartjs-chart-boxplot.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.umd.min.js"></script>
 
   <meta name="theme-color" content="#0b1220" />
   <style>
@@ -382,7 +382,8 @@
     for(i=0;i<items.length;i++){ m=items[i]; topMap[m.champion||"Unknown"]=(topMap[m.champion||"Unknown"]||0)+1; }
     var topChamps=Object.keys(topMap).map(function(k){return [k,topMap[k]];}).sort(function(a,b){return b[1]-a[1];}).slice(0,10).map(function(x){return x[0];});
     var kdaBy={}, ci, qi;
-    for(ci=0;ci<topChamps.length;ci++){ var cc=topChamps[ci]; kdaBy[cc]={}; for(qi=0;qi<queues.length;qi++) kdaBy[cc][queues[qi]]=[]; }
+    for(ci=0;ci<topChamps.length;ci++){ var cc=topChamps[ci]; kdaBy[cc]={}; for(qi=0;qi<queues.length;qi++) kdaBy[cc][queues[qi]]=[];
+    }
     for(i=0;i<items.length;i++){
       m=items[i]; var ccc=m.champion||"Unknown"; if(topChamps.indexOf(ccc)===-1) continue;
       var q=(m.queueType || (m.gameMode==="CLASSIC" ? "NORMAL" : "NORMAL")); var mch2=(m.kda||'').match(/^(\d+)\/(\d+)\/(\d+)/)||[]; var kk=+mch2[1]||0, dd=+mch2[2]||0, aa=+mch2[3]||0; var val= dd===0 ? (kk+aa) : (kk+aa)/dd;
