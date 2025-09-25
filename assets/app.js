@@ -1,216 +1,191 @@
-/* Thunder 전적검색 v1 - 클릭불가 원인 제거 + 안정 핸들러
-   - 왜: 이전 빌드의 구문 오류와 전면 오버레이로 클릭이 차단됨
-   - 대책: 전역 에러트랩, 안전 바인딩, 오버레이 pointer-events 무력화, 상태 표기
-*/
+// Thunder v1 Frontend
+// 환경 스위치: API_BASE 설정 시 실제 호출, 없으면 mock
+const API_BASE = (window.API_BASE && typeof window.API_BASE === 'string') ? window.API_BASE : '';
 
-// ===== 전역 에러 배지 =====
-(function initGlobalErrorTrap() {
-  const badge = document.getElementById('errorBadge');
-  const text = document.getElementById('errorText');
-  function show(msg) {
-    if (!badge || !text) return;
-    text.textContent = String(msg).slice(0, 4000);
-    badge.classList.remove('hidden');
-  }
-  window.addEventListener('error', (e) => {
-    show(`${e.message}\n${e.filename}:${e.lineno}:${e.colno}`);
-  });
-  window.addEventListener('unhandledrejection', (e) => {
-    show(`UnhandledRejection: ${e.reason}`);
-  });
+// 간단 오류 배지
+const badge = document.getElementById('errBadge');
+(function hookConsole(){
+  const origError = console.error;
+  let errCount = 0;
+  console.error = function(...args){
+    errCount++; badge.textContent = `Errors: ${errCount}`;
+    origError.apply(console, args);
+  };
+  badge.textContent = `Errors: 0`;
 })();
 
-// ===== DOM 셀렉터 =====
-const $ = (sel) => document.querySelector(sel);
-const byId = (id) => document.getElementById(id);
-
-// 필수 요소
-const form = byId('searchForm');
-const input = byId('riotId');
-const stateText = byId('stateText');
-const profileSkeleton = byId('profileSkeleton');
-const profileContent = byId('profileContent');
-
-// 상태
-const setState = (s) => { if (stateText) stateText.textContent = s; };
-
-// ===== 안전 이벤트 바인딩 =====
-function safeBind(target, event, handler) {
-  if (!target) return;
-  target.addEventListener(event, (ev) => {
-    try { handler(ev); } catch (err) { console.error(err); throw err; }
-  });
-}
-
-// ===== 오버레이/레이어 방지(실행 시 재차 무력화) =====
-function neutralizeOverlays() {
-  const killers = ['[data-debug-overlay]', '.debug-overlay', '.backdrop', '.modal-backdrop', '#overlay', '.overlay'];
-  killers.forEach(sel => {
-    document.querySelectorAll(sel).forEach(el => {
-      el.style.pointerEvents = 'none';
-    });
-  });
-}
-neutralizeOverlays();
-const overlayObserver = new MutationObserver(neutralizeOverlays);
-overlayObserver.observe(document.documentElement, { childList: true, subtree: true });
-
-// ===== Mock 및 API 래퍼 =====
-const API_BASE = (window.THUNDER_API_BASE || '').trim(); // 필요시 index.html에서 window.THUNDER_API_BASE 지정 가능
-const USE_MOCK = !API_BASE; // API_BASE 미설정이면 목업
-
-async function fetchWithRetry(url, opt = {}, { timeoutMs = 8000, retries = 1 } = {}) {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-      const res = await fetch(url, { ...opt, signal: ctrl.signal });
+// 유틸: 타임아웃+재시도 fetch
+async function fetchWithRetry(url, opts={}, {retries=2, timeout=8000, backoff=600}={}){
+  for(let attempt=0; attempt<=retries; attempt++){
+    const controller = new AbortController();
+    const t = setTimeout(()=>controller.abort(), timeout);
+    try{
+      const res = await fetch(url, {...opts, signal: controller.signal});
       clearTimeout(t);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res;
-    } catch (err) {
+      if(!res.ok){
+        // 워커 에러 포맷 {error:{code,message}}
+        let msg = `HTTP ${res.status}`;
+        try{ const j = await res.json(); if(j?.error?.message) msg += ` ${j.error.message}` }catch{}
+        throw new Error(msg);
+      }
+      return res.json();
+    }catch(e){
       clearTimeout(t);
-      if (attempt === retries) throw err;
-      await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+      if(attempt === retries) throw e;
+      await new Promise(r=>setTimeout(r, backoff*(attempt+1)));
     }
   }
 }
 
-function mockData(riotId) {
-  const [name, tag = 'KR1'] = String(riotId).split('#');
+// DOM
+const $ = s=>document.querySelector(s);
+const form = $('#searchForm');
+const q = $('#q');
+const statusEl = $('#status');
+const skeleton = $('#skeleton');
+const empty = $('#empty');
+const profile = $('#profile');
+const charts = $('#charts');
+const emptyGames = $('#emptyGames');
+const toast = $('#toast');
+const icon = $('#icon');
+const nameEl = $('#name');
+const levelEl = $('#level');
+
+let ChartMod = null;
+
+// Chart.js 지연 로드
+async function ensureChart(){
+  if(ChartMod) return ChartMod;
+  const mod = await import('https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js');
+  ChartMod = mod;
+  return mod;
+}
+
+// 가짜 데이터(MOCK)
+function mockProfile(tagged){
   return {
-    profile: {
-      gameName: name || 'Demo',
-      tagLine: tag || 'KR1',
-      tier: 'Diamond',
-      lp: 75,
-      level: 244
-    },
-    charts: {
-      kda: { labels: ['K','D','A'], data: [72, 38, 110] },
-      win: { labels: ['Win','Loss'], data: [6,4] },
-      pos: { labels: ['TOP','JGL','MID','ADC','SUP'], data: [10, 40, 20, 20, 10] }
-    }
+    gameName: tagged.split('#')[0],
+    tagLine: tagged.split('#')[1]||'KR1',
+    level: 427,
+    profileIconId: 23,
+    puuid: 'MOCK_PUUID_123'
   };
 }
-
-async function getSummary(riotId) {
-  if (USE_MOCK) return mockData(riotId);
-  // 실제 워커 연결 가이드: API_BASE는 Cloudflare Worker의 도메인
-  // - GET `${API_BASE}/summoner/:name/:tag`
-  // - GET `${API_BASE}/matches/:puuid?count=10`
-  const [name, tag] = riotId.split('#');
-  if (!name || !tag) throw new Error('Riot ID 형식 오류: name#TAG');
-
-  const profRes = await fetchWithRetry(`${API_BASE}/summoner/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`);
-  const profile = await profRes.json();
-
-  // 프로필에서 puuid 얻어 매치요약 병렬
-  const matchesRes = await fetchWithRetry(`${API_BASE}/matches/${encodeURIComponent(profile.puuid)}?count=10`);
-  const matches = await matchesRes.json();
-
-  // 여기서는 간단 요약만 구성
-  const wins = matches.filter(m => m.win).length;
-  const losses = matches.length - wins;
-  return {
-    profile: {
-      gameName: profile.gameName,
-      tagLine: profile.tagLine,
-      tier: profile.tier || 'Unranked',
-      lp: profile.lp ?? 0,
-      level: profile.summonerLevel ?? 0
-    },
-    charts: {
-      kda: { labels: ['K','D','A'], data: [profile.kills ?? 50, profile.deaths ?? 30, profile.assists ?? 70] },
-      win: { labels: ['Win','Loss'], data: [wins, losses] },
-      pos: { labels: ['TOP','JGL','MID','ADC','SUP'], data: [12, 36, 22, 18, 12] }
-    }
-  };
+function mockMatches(){
+  const games = Array.from({length:10},(_,i)=>({
+    k: Math.floor(Math.random()*10),
+    d: Math.floor(Math.random()*8)+1,
+    a: Math.floor(Math.random()*12),
+    win: Math.random()>0.5,
+    pos: ['TOP','JUNGLE','MIDDLE','BOTTOM','UTILITY'][Math.floor(Math.random()*5)]
+  }));
+  return {games};
 }
 
-// ===== UI Update =====
-function showSkeleton(on) {
-  if (!profileSkeleton || !profileContent) return;
-  profileSkeleton.classList.toggle('hidden', !on);
-  profileContent.classList.toggle('hidden', on);
+// UI 상태
+function setState(state){
+  // idle | loading | success | error
+  statusEl.textContent = state;
+  skeleton.classList.toggle('hidden', state!=='loading');
+  profile.classList.toggle('hidden', state!=='success');
+  charts.classList.toggle('hidden', state!=='success');
+  empty.classList.toggle('hidden', state!=='idle');
+}
+function showToast(msg){
+  toast.textContent = msg;
+  toast.classList.remove('hidden');
+  setTimeout(()=>toast.classList.add('hidden'), 3000);
 }
 
-function renderProfile(p) {
-  if (!profileContent) return;
-  profileContent.innerHTML = `
-    <div class="text-base font-semibold">${p.gameName} <span class="text-gray-500">#${p.tagLine}</span></div>
-    <div class="mt-1">레벨 ${p.level}</div>
-    <div class="mt-1">티어 ${p.tier} <span class="text-gray-500">${p.lp} LP</span></div>
-  `;
-}
-
-// 차트 인스턴스 관리
-let kdaInst = null, winInst = null, posInst = null;
-function ensureDestroy(chart) { if (chart && typeof chart.destroy === 'function') chart.destroy(); }
-
-function renderCharts(ch) {
-  const kdaEl = byId('kdaChart');
-  const winEl = byId('winChart');
-  const posEl = byId('posChart');
-
-  ensureDestroy(kdaInst); ensureDestroy(winInst); ensureDestroy(posInst);
-
-  if (kdaEl) {
-    kdaInst = new Chart(kdaEl, {
-      type: 'bar',
-      data: { labels: ch.kda.labels, datasets: [{ label: 'KDA', data: ch.kda.data }] },
-      options: { responsive: true, maintainAspectRatio: false }
-    });
-  }
-  if (winEl) {
-    winInst = new Chart(winEl, {
-      type: 'doughnut',
-      data: { labels: ch.win.labels, datasets: [{ label: '승률', data: ch.win.data }] },
-      options: { responsive: true, maintainAspectRatio: false, cutout: '60%' }
-    });
-  }
-  if (posEl) {
-    posInst = new Chart(posEl, {
-      type: 'bar',
-      data: { labels: ch.pos.labels, datasets: [{ label: '분포', data: ch.pos.data }] },
-      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
-    });
-  }
-}
-
-// ===== 검색 흐름 =====
-async function onSearch(riotId) {
+// 데이터 로딩
+async function loadAll(riotId){
   setState('loading');
-  showSkeleton(true);
-  try {
-    const data = await getSummary(riotId);
-    renderProfile(data.profile);
-    renderCharts(data.charts);
+  emptyGames.classList.add('hidden');
+  try{
+    const [name, tag] = riotId.split('#');
+    if(!name || !tag) throw new Error('형식: name#TAG');
+
+    const profileUrl = API_BASE
+      ? `${API_BASE}/summoner/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`
+      : null;
+    const prof = API_BASE
+      ? await fetchWithRetry(profileUrl)
+      : mockProfile(riotId);
+
+    const matchesUrl = API_BASE
+      ? `${API_BASE}/matches/${encodeURIComponent(prof.puuid)}?count=10`
+      : null;
+    const matches = API_BASE
+      ? await fetchWithRetry(matchesUrl)
+      : mockMatches();
+
+    // 프로필 렌더
+    icon.src = `https://ddragon.leagueoflegends.com/cdn/14.18.1/img/profileicon/${prof.profileIconId||0}.png`;
+    icon.alt = '프로필 아이콘';
+    nameEl.textContent = `${prof.gameName}#${prof.tagLine}`;
+    levelEl.textContent = `Lv. ${prof.level ?? ''}`;
+
+    // 차트
+    const {Chart} = await ensureChart();
+    renderCharts(Chart, matches.games);
+
+    if(!matches.games || matches.games.length===0){
+      emptyGames.classList.remove('hidden');
+    }
+
     setState('success');
-  } catch (err) {
+  }catch(e){
     setState('error');
-    throw err; // 전역 배지로 표출
-  } finally {
-    showSkeleton(false);
+    showToast(`에러: ${e.message}`);
+    throw e; // 배지 카운트용
   }
 }
 
-// ===== 이벤트 바인딩 =====
-safeBind(form, 'submit', (e) => {
-  e.preventDefault();
-  const val = (input?.value || '').trim();
-  if (!val) return;
-  onSearch(val);
+// 차트 렌더
+let kdaChart, winChart, posChart;
+function renderCharts(Chart, games){
+  const kd = games.map(g=> (g.d===0? (g.k+g.a): (g.k+g.a)/g.d ));
+  const wins = games.filter(g=>g.win).length;
+  const losses = games.length - wins;
+  const posCounts = games.reduce((m,g)=> (m[g.pos]=(m[g.pos]||0)+1, m), {});
+  const labels = games.map((_,i)=>`G${i+1}`);
+
+  // 파괴 방지: 기존 차트 제거
+  [kdaChart,winChart,posChart].forEach(c=>{ if(c){ c.destroy(); } });
+
+  kdaChart = new Chart(document.getElementById('kdaBar'),{
+    type:'bar',
+    data:{ labels, datasets:[{ label:'KDA', data: kd }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}}
+  });
+
+  winChart = new Chart(document.getElementById('winDonut'),{
+    type:'doughnut',
+    data:{ labels:['Win','Loss'], datasets:[{ data:[wins,losses]}]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}}
+  });
+
+  posChart = new Chart(document.getElementById('posPie'),{
+    type:'pie',
+    data:{ labels:Object.keys(posCounts), datasets:[{ data:Object.values(posCounts)}]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}}
+  });
+}
+
+// 폼 제출
+form.addEventListener('submit', (ev)=>{
+  ev.preventDefault();
+  const v = q.value.trim();
+  if(!v){ showToast('Riot ID를 입력하세요.'); return; }
+  setState('loading');
+  loadAll(v);
 });
 
-// 데모 데이터 채우기
-safeBind(byId('fillDemo'), 'click', () => {
-  if (input) input.value = 'Demo#KR1';
-  onSearch('Demo#KR1');
+// 키보드 UX: Enter 제출
+q.addEventListener('keydown', (e)=>{
+  if(e.key==='Enter'){ form.requestSubmit(); }
 });
 
-// 초기 렌더 안전 확인
-document.addEventListener('DOMContentLoaded', () => {
-  setState('idle');
-  neutralizeOverlays();
-});
+// 초기
+setState('idle');
