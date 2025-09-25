@@ -75,8 +75,9 @@ async function riot(c: any, path: string) {
   const url = `https://${region}${path}`
   const res = await fetch(url, { headers: { 'X-Riot-Token': RIOT_API_KEY } })
   if (!res.ok) {
-    const txt = await res.text()
-    throw new HTTPException(res.status, { message: txt || res.statusText })
+    const errorText = await res.text()
+    console.error(`API Error: ${errorText}`)
+    throw new HTTPException(res.status, { message: errorText || res.statusText })
   }
   return res.json()
 }
@@ -84,12 +85,18 @@ async function riot(c: any, path: string) {
 // GET /summoner/:name/:tag
 app.get('/summoner/:name/:tag', async c => {
   const { name, tag } = c.req.param()
-  // 1) Riot ID → PUUID
+
+  if (!name || !tag) {
+    throw new HTTPException(400, { message: 'Invalid summoner name or tag' })
+  }
+
+  // Riot ID → PUUID
   const acc = await riot(c, `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`)
   if (!acc) {
     throw new HTTPException(404, { message: 'Riot ID not found' })
   }
-  // 2) 소환사 데이터 가져오기
+
+  // 소환사 데이터 가져오기
   const summ = await riot(c, `/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(acc.puuid)}`)
   return c.json({
     gameName: acc.gameName,
@@ -97,55 +104,6 @@ app.get('/summoner/:name/:tag', async c => {
     puuid: acc.puuid,
     profileIconId: summ.profileIconId,
     level: summ.summonerLevel
-  })
-})
-
-// GET /matches/:puuid?count=10
-app.get('/matches/:puuid', async c => {
-  const puuid = c.req.param('puuid')
-  const count = Number(new URL(c.req.url).searchParams.get('count') || '10')
-  // 매치 ID 목록
-  const ids: string[] = await riot(c, `/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?start=0&count=${count}`)
-  if (!ids || ids.length === 0) {
-    throw new HTTPException(404, { message: 'No matches found' })
-  }
-  // 매치 상세 정보 병렬 처리
-  const details = await Promise.all(ids.map(id => riot(c, `/lol/match/v5/matches/${id}`)))
-  // 필요한 정보만 추출
-  const games = details.map((m: any) => {
-    const p = m.info.participants.find((p: any) => p.puuid === puuid)
-    return {
-      k: p.kills, d: p.deaths, a: p.assists,
-      win: Boolean(p.win),
-      pos: String(p.teamPosition || p.role || 'UNKNOWN').toUpperCase()
-    }
-  })
-  return c.json({ games })
-})
-
-// GET /summoner-winrate/:name/:tag (소환사 승률 계산)
-app.get('/summoner-winrate/:name/:tag', async c => {
-  const { name, tag } = c.req.param()
-  // 1) Riot ID → PUUID
-  const acc = await riot(c, `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`)
-  // 2) 소환사 매치 기록 가져오기
-  const matchIds = await riot(c, `/lol/match/v5/matches/by-puuid/${encodeURIComponent(acc.puuid)}/ids?start=0&count=10`)
-
-  // 3) 매치 정보 가져오기
-  const matches = await Promise.all(
-    matchIds.map(id => riot(c, `/lol/match/v5/matches/${id}`))
-  )
-  
-  // 4) 승리한 경기 수 계산
-  const wins = matches.filter((m: any) => m.info.participants.some((p: any) => p.puuid === acc.puuid && p.win)).length
-  const winRate = (wins / matchIds.length) * 100
-  
-  // 5) 결과 반환
-  return c.json({
-    gameName: acc.gameName,
-    tagLine: acc.tagLine,
-    winRate: winRate.toFixed(2),  // 승률을 백분율로 표시
-    totalMatches: matchIds.length,
   })
 })
 
