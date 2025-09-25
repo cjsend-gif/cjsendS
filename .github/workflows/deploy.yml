@@ -1,4 +1,7 @@
 name: Deploy Thunder
+permissions:
+  contents: write  # 예: 파일 수정 권한
+  id-token: write  # id-token을 생성하고 쓸 수 있는 권한 추가
 on:
   push:
     branches: [ main ]
