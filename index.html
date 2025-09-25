@@ -3,13 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Thunder — LoL Stats (Clean Template)</title>
-  <meta name="description" content="LoL stats viewer. Search summoners, browse matches, champions, and leaderboards.">
+  <title>Thunder — LoL Stats</title>
+  <meta name="description" content="LoL stats viewer. Search summoners, matches, champions, and leaderboards.">
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    .card{ @apply bg-white dark:bg-neutral-900 rounded-2xl shadow p-4 border border-neutral-100 dark:border-neutral-800; }
-    .badge{ @apply text-xs px-2 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800; }
+    .card{ --tw:0; }
+    @media (prefers-color-scheme: dark){ :root{ color-scheme: dark; } }
+    .card{ border-radius:1rem; padding:1rem; background:#fff; border:1px solid #eee; box-shadow:0 1px 2px rgba(0,0,0,.04);}
+    .dark .card{ background:#0a0a0a; border-color:#222; }
+    .badge{ font-size:.75rem; padding:.25rem .5rem; border-radius:9999px; background:#f3f3f3;}
+    .dark .badge{ background:#111; }
   </style>
 </head>
 <body class="bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100">
@@ -88,152 +92,173 @@
 </footer>
 
 <script>
-const API_BASE = "https://<https://cjsend.erickparkcha.workers.dev/>"; // 예: https://thunder-api.your-subdomain.workers.dev
+  // ⛏️ 여기를 네 워커 URL로 교체하세요 (예: https://cjsend.abcdef123456.workers.dev)
+  const API_BASE = "https://cjsend.erickparkcha.workers.dev/";
 
-// theme
-const root = document.documentElement;
-document.getElementById("toggleTheme").onclick = () => {
-  const d = document.body.classList.toggle("dark");
-  localStorage.setItem("theme", d ? "dark" : "light");
-};
-if (localStorage.getItem("theme")==="dark") document.body.classList.add("dark");
+  // 테마 토글
+  (() => {
+    const btn = document.getElementById("toggleTheme");
+    if (localStorage.getItem("theme")==="dark") document.body.classList.add("dark");
+    btn.addEventListener("click", () => {
+      const d = document.body.classList.toggle("dark");
+      localStorage.setItem("theme", d ? "dark" : "light");
+    });
+  })();
 
-// tabs
-const tabs = document.querySelectorAll(".tab");
-const panels = {
-  profile: document.getElementById("panel-profile"),
-  matches: document.getElementById("panel-matches"),
-  champions: document.getElementById("panel-champions"),
-  leaderboard: document.getElementById("panel-leaderboard"),
-};
-tabs.forEach(b=>{
-  b.addEventListener("click", ()=>{
-    tabs.forEach(x=>x.classList.remove("bg-neutral-200","dark:bg-neutral-800"));
-    b.classList.add("bg-neutral-200","dark:bg-neutral-800");
-    const tab = b.dataset.tab;
-    Object.values(panels).forEach(p=>p.classList.add("hidden"));
-    panels[tab].classList.remove("hidden");
+  // 탭
+  const tabs = document.querySelectorAll(".tab");
+  const panels = {
+    profile: document.getElementById("panel-profile"),
+    matches: document.getElementById("panel-matches"),
+    champions: document.getElementById("panel-champions"),
+    leaderboard: document.getElementById("panel-leaderboard"),
+  };
+  tabs.forEach(b=>{
+    b.addEventListener("click", ()=>{
+      tabs.forEach(x=>x.classList.remove("bg-neutral-200","dark:bg-neutral-800"));
+      b.classList.add("bg-neutral-200","dark:bg-neutral-800");
+      const tab = b.dataset.tab;
+      Object.values(panels).forEach(p=>p.classList.add("hidden"));
+      panels[tab].classList.remove("hidden");
+    });
   });
-});
 
-// search
-let CURRENT = { summoner:null, puuid:null, start:0, ids:[] };
-async function searchSummoner() {
-  const name = document.getElementById("q").value.trim();
-  if (!name) return;
-  setProfileLoading();
-  const r = await fetch(`${API_BASE}/api/summoner?name=${encodeURIComponent(name)}&region=kr`);
-  if (!r.ok) return setProfileError("소환사를 찾을 수 없습니다.");
-  const sum = await r.json();
-  CURRENT.summoner = sum;
-  CURRENT.puuid = sum.puuid;
-  CURRENT.start = 0;
-  document.getElementById("panel-profile").scrollIntoView({behavior:"smooth"});
-  renderProfile(sum);
-  await loadMatchIds(true);
-}
-document.getElementById("btnSearch").onclick = searchSummoner;
-document.getElementById("q").addEventListener("keydown", e=>{ if(e.key==="Enter") searchSummoner(); });
-
-function setProfileLoading(){
-  document.getElementById("profileBox").innerHTML = `<div class="animate-pulse text-neutral-400">불러오는 중…</div>`;
-}
-function setProfileError(msg){
-  document.getElementById("profileBox").innerHTML = `<div class="text-red-500">${msg}</div>`;
-}
-function renderProfile(s){
-  document.getElementById("profileBox").innerHTML = `
-    <div class="flex items-center gap-3">
-      <img src="https://ddragon.leagueoflegends.com/cdn/14.18.1/img/profileicon/${s.profileIconId}.png" class="w-12 h-12 rounded-xl" alt="" />
-      <div>
-        <div class="text-lg font-bold">${s.name}</div>
-        <div class="text-sm text-neutral-500">Level ${s.summonerLevel}</div>
-      </div>
-    </div>
-  `;
-}
-
-// matches
-async function loadMatchIds(reset=false){
-  if (!CURRENT.puuid) return;
-  if (reset) {
-    CURRENT.start = 0;
-    CURRENT.ids = [];
-    document.getElementById("matchList").innerHTML = "";
-    panels.matches.classList.remove("hidden");
-    tabs.forEach(x=>x.classList.remove("bg-neutral-200","dark:bg-neutral-800"));
-    document.querySelector('[data-tab="matches"]').classList.add("bg-neutral-200","dark:bg-neutral-800");
+  // 상태 표시
+  function setProfileLoading(){
+    document.getElementById("profileBox").innerHTML = `<div class="animate-pulse text-neutral-400">불러오는 중…</div>`;
   }
-  const r = await fetch(`${API_BASE}/api/matches?puuid=${CURRENT.puuid}&start=${CURRENT.start}&count=10&region=kr`);
-  if (!r.ok) return;
-  const ids = await r.json();
-  CURRENT.ids.push(...ids);
-  CURRENT.start += 10;
-  for (const id of ids) {
-    const card = document.createElement("div");
-    card.className = "card";
-    card.textContent = `매치: ${id}`;
-    card.onclick = ()=> openMatch(id, card);
-    document.getElementById("matchList").appendChild(card);
+  function setProfileError(msg){
+    document.getElementById("profileBox").innerHTML = `<div class="text-red-500">${msg}</div>`;
   }
-}
-document.getElementById("loadMore").onclick = ()=>loadMatchIds(false);
-
-async function openMatch(id, el){
-  el.innerHTML = `<div class="animate-pulse text-neutral-400">상세 불러오는 중…</div>`;
-  const r = await fetch(`${API_BASE}/api/match/${id}`);
-  if (!r.ok){ el.innerHTML = `<div class="text-red-500">불러오기 실패</div>`; return; }
-  const m = await r.json();
-  const info = m.info;
-  const dur = Math.round(info.gameDuration/60);
-  el.innerHTML = `
-    <div class="flex items-center justify-between">
-      <div class="font-semibold">${info.gameMode} · ${dur}분</div>
-      <div class="badge">${new Date(info.gameStartTimestamp).toLocaleString()}</div>
-    </div>
-    <div class="grid md:grid-cols-2 gap-3 mt-3">
-      ${info.teams.map((t,ti)=>`
-        <div class="border rounded-xl p-3">
-          <div class="font-medium mb-2">팀 ${ti+1} ${t.win ? '✅ 승' : '❌ 패'}</div>
-          ${info.participants.filter(p=>p.teamId===t.teamId).map(p=>{
-            const kda = `${p.kills}/${p.deaths}/${p.assists}`;
-            return `
-              <div class="flex items-center gap-2 py-1 text-sm">
-                <img class="w-8 h-8 rounded" src="https://ddragon.leagueoflegends.com/cdn/14.18.1/img/champion/${p.championName}.png" alt="">
-                <div class="flex-1 truncate">${p.summonerName}</div>
-                <div class="tabular-nums">${kda}</div>
-                <div class="tabular-nums w-16 text-right">${p.totalDamageDealtToChampions}</div>
-              </div>`;
-          }).join("")}
+  function renderProfile(s){
+    document.getElementById("profileBox").innerHTML = `
+      <div class="flex items-center gap-3">
+        <img src="https://ddragon.leagueoflegends.com/cdn/14.18.1/img/profileicon/${s.profileIconId}.png" class="w-12 h-12 rounded-xl" alt="" />
+        <div>
+          <div class="text-lg font-bold">${s.name}</div>
+          <div class="text-sm text-neutral-500">Level ${s.summonerLevel}</div>
         </div>
-      `).join("")}
-    </div>
-  `;
-}
+      </div>
+    `;
+  }
 
-// champions(자리만들기)
-document.getElementById("champMeta").textContent = "패치 스냅샷 준비됨: DDragon/내부 통계 집계 연결 필요";
+  // 검색
+  let CURRENT = { summoner:null, puuid:null, start:0, ids:[] };
 
-// leaderboard
-async function loadLeaderboard(){
-  const r = await fetch(`${API_BASE}/api/leaderboard?queue=RANKED_SOLO_5x5&region=kr`);
-  if (!r.ok) return;
-  const d = await r.json();
-  const rows = d.entries.slice(0, 100).sort((a,b)=>b.leaguePoints-a.leaguePoints);
-  document.getElementById("lbTable").innerHTML = `
-    <div class="grid grid-cols-5 gap-2">
-      <div class="font-semibold">#</div><div class="font-semibold">소환사</div>
-      <div class="font-semibold">LP</div><div class="font-semibold">승</div><div class="font-semibold">패</div>
-      ${rows.map((e,i)=>`
-        <div>${i+1}</div><div class="truncate">${e.summonerName}</div>
-        <div>${e.leaguePoints}</div><div>${e.wins}</div><div>${e.losses}</div>
-      `).join("")}
-    </div>`;
-}
-document.getElementById("refreshLb").onclick = loadLeaderboard;
+  async function searchSummoner() {
+    let raw = document.getElementById("q").value.trim();
+    if (!raw) return;
+    // Riot ID 입력(name#tag)이면 Summoner-v4 호환을 위해 name만 사용
+    const name = raw.includes("#") ? raw.split("#")[0] : raw;
 
-// init
-loadLeaderboard();
+    if (!API_BASE.startsWith("http")) {
+      alert("API_BASE가 설정되지 않았습니다. index.html 상단에서 워커 URL을 지정하세요.");
+      return;
+    }
+
+    try {
+      setProfileLoading();
+      const r = await fetch(`${API_BASE}/api/summoner?name=${encodeURIComponent(name)}&region=kr`);
+      if (!r.ok) { setProfileError("소환사를 찾을 수 없습니다."); return; }
+      const sum = await r.json();
+      CURRENT.summoner = sum;
+      CURRENT.puuid = sum.puuid;
+      CURRENT.start = 0;
+      renderProfile(sum);
+      await loadMatchIds(true);
+    } catch (e) {
+      setProfileError("요청 실패: " + (e && e.message ? e.message : e));
+    }
+  }
+
+  document.getElementById("btnSearch").addEventListener("click", searchSummoner);
+  document.getElementById("q").addEventListener("keydown", e => { if(e.key==="Enter") searchSummoner(); });
+
+  // 매치 목록
+  async function loadMatchIds(reset){
+    if (!CURRENT.puuid) return;
+    if (reset) {
+      CURRENT.start = 0;
+      CURRENT.ids = [];
+      document.getElementById("matchList").innerHTML = "";
+      panels.matches.classList.remove("hidden");
+      tabs.forEach(x=>x.classList.remove("bg-neutral-200","dark:bg-neutral-800"));
+      document.querySelector('[data-tab="matches"]').classList.add("bg-neutral-200","dark:bg-neutral-800");
+    }
+    try{
+      const r = await fetch(`${API_BASE}/api/matches?puuid=${CURRENT.puuid}&start=${CURRENT.start}&count=10&region=kr`);
+      if (!r.ok) return;
+      const ids = await r.json();
+      CURRENT.ids.push(...ids);
+      CURRENT.start += 10;
+      for (const id of ids) {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.textContent = `매치: ${id}`;
+        card.addEventListener("click", () => openMatch(id, card));
+        document.getElementById("matchList").appendChild(card);
+      }
+    } catch(e){ /* ignore */ }
+  }
+  document.getElementById("loadMore").addEventListener("click", ()=>loadMatchIds(false));
+
+  // 매치 상세
+  async function openMatch(id, el){
+    el.innerHTML = `<div class="animate-pulse text-neutral-400">상세 불러오는 중…</div>`;
+    try{
+      const r = await fetch(`${API_BASE}/api/match/${id}`);
+      if (!r.ok){ el.innerHTML = `<div class="text-red-500">불러오기 실패</div>`; return; }
+      const m = await r.json();
+      const info = m.info;
+      const dur = Math.round(info.gameDuration/60);
+      el.innerHTML = `
+        <div class="flex items-center justify-between">
+          <div class="font-semibold">${info.gameMode} · ${dur}분</div>
+          <div class="badge">${new Date(info.gameStartTimestamp).toLocaleString()}</div>
+        </div>
+        <div class="grid md:grid-cols-2 gap-3 mt-3">
+          ${info.teams.map((t,ti)=>`
+            <div class="border rounded-xl p-3">
+              <div class="font-medium mb-2">팀 ${ti+1} ${t.win ? '✅ 승' : '❌ 패'}</div>
+              ${info.participants.filter(p=>p.teamId===t.teamId).map(p=>{
+                const kda = p.deaths === 0 ? \`\${p.kills}/0/\${p.assists}\` : \`\${p.kills}/\${p.deaths}/\${p.assists}\`;
+                return `
+                  <div class="flex items-center gap-2 py-1 text-sm">
+                    <img class="w-8 h-8 rounded" src="https://ddragon.leagueoflegends.com/cdn/14.18.1/img/champion/${p.championName}.png" alt="">
+                    <div class="flex-1 truncate">${p.summonerName}</div>
+                    <div class="tabular-nums">${kda}</div>
+                    <div class="tabular-nums w-16 text-right">${p.totalDamageDealtToChampions}</div>
+                  </div>`;
+              }).join("")}
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }catch(e){ el.innerHTML = `<div class="text-red-500">오류: ${e && e.message ? e.message : e}</div>`; }
+  }
+
+  // 리더보드
+  async function loadLeaderboard(){
+    try{
+      const r = await fetch(`${API_BASE}/api/leaderboard?queue=RANKED_SOLO_5x5&region=kr`);
+      if (!r.ok) return;
+      const d = await r.json();
+      const rows = (d.entries || []).slice(0, 100).sort((a,b)=>b.leaguePoints-a.leaguePoints);
+      document.getElementById("lbTable").innerHTML = `
+        <div class="grid grid-cols-5 gap-2">
+          <div class="font-semibold">#</div><div class="font-semibold">소환사</div>
+          <div class="font-semibold">LP</div><div class="font-semibold">승</div><div class="font-semibold">패</div>
+          ${rows.map((e,i)=>`
+            <div>${i+1}</div><div class="truncate">${e.summonerName}</div>
+            <div>${e.leaguePoints}</div><div>${e.wins}</div><div>${e.losses}</div>
+          `).join("")}
+        </div>`;
+    }catch(e){ /* ignore */ }
+  }
+  document.getElementById("refreshLb").addEventListener("click", loadLeaderboard);
+
+  // 초기 로딩
+  loadLeaderboard();
 </script>
 </body>
 </html>
