@@ -102,4 +102,115 @@ async function getSummary(riotId) {
   const [name, tag] = riotId.split('#');
   if (!name || !tag) throw new Error('Riot ID 형식 오류: name#TAG');
 
-  const profRes = await fetchWithRetry(`${API_BASE}/summ_
+  const profRes = await fetchWithRetry(`${API_BASE}/summoner/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`);
+  const profile = await profRes.json();
+
+  // 프로필에서 puuid 얻어 매치요약 병렬
+  const matchesRes = await fetchWithRetry(`${API_BASE}/matches/${encodeURIComponent(profile.puuid)}?count=10`);
+  const matches = await matchesRes.json();
+
+  // 여기서는 간단 요약만 구성
+  const wins = matches.filter(m => m.win).length;
+  const losses = matches.length - wins;
+  return {
+    profile: {
+      gameName: profile.gameName,
+      tagLine: profile.tagLine,
+      tier: profile.tier || 'Unranked',
+      lp: profile.lp ?? 0,
+      level: profile.summonerLevel ?? 0
+    },
+    charts: {
+      kda: { labels: ['K','D','A'], data: [profile.kills ?? 50, profile.deaths ?? 30, profile.assists ?? 70] },
+      win: { labels: ['Win','Loss'], data: [wins, losses] },
+      pos: { labels: ['TOP','JGL','MID','ADC','SUP'], data: [12, 36, 22, 18, 12] }
+    }
+  };
+}
+
+// ===== UI Update =====
+function showSkeleton(on) {
+  if (!profileSkeleton || !profileContent) return;
+  profileSkeleton.classList.toggle('hidden', !on);
+  profileContent.classList.toggle('hidden', on);
+}
+
+function renderProfile(p) {
+  if (!profileContent) return;
+  profileContent.innerHTML = `
+    <div class="text-base font-semibold">${p.gameName} <span class="text-gray-500">#${p.tagLine}</span></div>
+    <div class="mt-1">레벨 ${p.level}</div>
+    <div class="mt-1">티어 ${p.tier} <span class="text-gray-500">${p.lp} LP</span></div>
+  `;
+}
+
+// 차트 인스턴스 관리
+let kdaInst = null, winInst = null, posInst = null;
+function ensureDestroy(chart) { if (chart && typeof chart.destroy === 'function') chart.destroy(); }
+
+function renderCharts(ch) {
+  const kdaEl = byId('kdaChart');
+  const winEl = byId('winChart');
+  const posEl = byId('posChart');
+
+  ensureDestroy(kdaInst); ensureDestroy(winInst); ensureDestroy(posInst);
+
+  if (kdaEl) {
+    kdaInst = new Chart(kdaEl, {
+      type: 'bar',
+      data: { labels: ch.kda.labels, datasets: [{ label: 'KDA', data: ch.kda.data }] },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+  if (winEl) {
+    winInst = new Chart(winEl, {
+      type: 'doughnut',
+      data: { labels: ch.win.labels, datasets: [{ label: '승률', data: ch.win.data }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '60%' }
+    });
+  }
+  if (posEl) {
+    posInst = new Chart(posEl, {
+      type: 'bar',
+      data: { labels: ch.pos.labels, datasets: [{ label: '분포', data: ch.pos.data }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
+    });
+  }
+}
+
+// ===== 검색 흐름 =====
+async function onSearch(riotId) {
+  setState('loading');
+  showSkeleton(true);
+  try {
+    const data = await getSummary(riotId);
+    renderProfile(data.profile);
+    renderCharts(data.charts);
+    setState('success');
+  } catch (err) {
+    setState('error');
+    throw err; // 전역 배지로 표출
+  } finally {
+    showSkeleton(false);
+  }
+}
+
+// ===== 이벤트 바인딩 =====
+safeBind(form, 'submit', (e) => {
+  e.preventDefault();
+  const val = (input?.value || '').trim();
+  if (!val) return;
+  onSearch(val);
+});
+
+// 데모 데이터 채우기
+safeBind(byId('fillDemo'), 'click', () => {
+  if (input) input.value = 'Demo#KR1';
+  onSearch('Demo#KR1');
+});
+
+// 초기 렌더 안전 확인
+document.addEventListener('DOMContentLoaded', () => {
+  setState('idle');
+  neutralizeOverlays();
+});
