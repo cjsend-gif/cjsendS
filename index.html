@@ -216,7 +216,10 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="border rounded-xl p-3">
               <div class="font-medium mb-2">팀 ${ti+1} ${t.win ? '✅ 승' : '❌ 패'}</div>
               ${info.participants.filter(p=>p.teamId===t.teamId).map(p=>{
-                const kda = p.deaths===0 ? \`\${p.kills}/0/\${p.assists}\` : \`\${p.kills}/\${p.deaths}/\${p.assists}\`;
+               const kda = p.deaths === 0
+  ? `${p.kills}/0/${p.assists}`
+  : `${p.kills}/${p.deaths}/${p.assists}`;
+
                 return `
                   <div class="flex items-center gap-2 py-1 text-sm">
                     <img class="w-8 h-8 rounded" src="https://ddragon.leagueoflegends.com/cdn/14.18.1/img/champion/${p.championName}.png" alt="">
