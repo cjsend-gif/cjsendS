@@ -1,4 +1,4 @@
-name = "thunder-worker"
+name = "cjsend"
 main = "src/worker.ts"
 compatibility_date = "2025-09-10"
 
