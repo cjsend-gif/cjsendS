@@ -1,0 +1,13 @@
+name = "cjsend"                 # 워커 이름과 같게
+main = "src/index.ts"           # 워커 엔트리 파일 경로
+compatibility_date = "2024-04-01"
+
+[vars]
+CORS_ORIGIN = "https://cjsend-gif.github.io"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "52289e295345461abbc627ab49f48fa5"   # 1단계에서 복사한 값
+
+[observability]
+enabled = true
