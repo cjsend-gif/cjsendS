@@ -4,7 +4,7 @@ compatibility_date = "2025-09-10"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "thunder_kv" # 실제 바인딩 ID로 교체
+id = "52289e295345461abbc627ab49f48fa5" # 실제 바인딩 ID로 교체
 
 [vars]
 ORIGIN_ALLOW = "https://cjsend-gif.github.io"
