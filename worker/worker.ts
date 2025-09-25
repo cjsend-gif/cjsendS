@@ -86,6 +86,9 @@ app.get('/summoner/:name/:tag', async c => {
   const { name, tag } = c.req.param()
   // 1) Riot ID → PUUID
   const acc = await riot(c, `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`)
+  if (!acc) {
+    throw new HTTPException(404, { message: 'Riot ID not found' })
+  }
   // 2) 소환사 데이터 가져오기
   const summ = await riot(c, `/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(acc.puuid)}`)
   return c.json({
@@ -103,6 +106,9 @@ app.get('/matches/:puuid', async c => {
   const count = Number(new URL(c.req.url).searchParams.get('count') || '10')
   // 매치 ID 목록
   const ids: string[] = await riot(c, `/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?start=0&count=${count}`)
+  if (!ids || ids.length === 0) {
+    throw new HTTPException(404, { message: 'No matches found' })
+  }
   // 매치 상세 정보 병렬 처리
   const details = await Promise.all(ids.map(id => riot(c, `/lol/match/v5/matches/${id}`)))
   // 필요한 정보만 추출
