@@ -1,109 +1,123 @@
 <!doctype html>
 <html lang="ko" class="h-full">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Thunder 전적검색 v1</title>
-
-  <!-- Tailwind CDN: 데모용. 프로덕션 전환 전 빌드 권장 -->
+  <!-- Tailwind CDN (데모용). 프로덕션은 빌드 권장 -->
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
-
-  <!-- 파비콘 404 방지(간단한 data URL) -->
-  <link rel="icon" type="image/svg+xml"
-        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ctext y='24' x='2' font-size='24'%3E⚡%3C/text%3E%3C/svg%3E">
-
-  <style>
-    /* 전면 오버레이가 클릭을 가로채는 문제 방지 */
-    [data-debug-overlay], .debug-overlay, .backdrop, .modal-backdrop {
-      pointer-events: none !important;
+  <script>
+    // 다크/라이트 자동
+    if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark')
+    } else { document.documentElement.classList.remove('dark') }
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            thunder: {
+              50:'#f5f8ff',100:'#e6eeff',200:'#c7d7ff',300:'#9cb7ff',
+              400:'#6f92ff',500:'#446dff',600:'#2d4ee3',700:'#243db7',
+              800:'#1e3292',900:'#192a77',950:'#0e173f'
+            }
+          }
+        }
+      }
     }
+  </script>
+  <!-- 파비콘 404 방지: data URI -->
+  <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path fill="%23446dff" d="M28 2 6 38h16l-6 24 32-40H34l10-20z"/></svg>'>
+  <meta name="color-scheme" content="light dark">
+  <style>
     /* 스켈레톤 */
-    .skeleton{background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 37%,#e5e7eb 63%);background-size:400% 100%;animation:skeleton 1.4s ease infinite}
-    @keyframes skeleton{0%{background-position:100% 50%}100%{background-position:0 50%}}
+    .skeleton{position:relative;overflow:hidden;background:linear-gradient(90deg,rgba(0,0,0,.08),rgba(0,0,0,.12),rgba(0,0,0,.08))}
+    .skeleton::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);transform:translateX(-100%);animation:shimmer 1.2s infinite}
+    @keyframes shimmer{100%{transform:translateX(100%)}}
+    /* 토스트 */
+    .toast-enter{animation:toast-in .18s ease-out}
+    @keyframes toast-in{from{transform:translateY(8px);opacity:.0}to{transform:translateY(0);opacity:1}}
   </style>
 </head>
-
 <body class="h-full bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
-  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:bg-yellow-300 focus:text-black focus:px-3 focus:py-1 rounded">
-    본문으로 건너뛰기
-  </a>
-
-  <!-- 고정 검색바 -->
-  <header class="sticky top-0 z-40 border-b border-gray-200 dark:border-gray-800 bg-white/85 dark:bg-gray-950/85 backdrop-blur">
-    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-2">
-      <span class="text-2xl">⚡</span>
-      <h1 class="text-lg font-semibold mr-auto">Thunder 전적검색</h1>
-
-      <form id="searchForm" class="flex items-center gap-2" role="search" aria-label="소환사 검색">
-        <label for="riotId" class="sr-only">Riot ID (예: name#TAG)</label>
-        <input id="riotId" name="riotId" required
-               class="w-56 md:w-72 px-3 py-2 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
-               placeholder="name#TAG" autocomplete="off" />
-        <button id="searchBtn" type="submit"
-                class="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
-          검색
-        </button>
+  <header class="sticky top-0 z-20 border-b border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-950/70 backdrop-blur">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+      <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><path fill="#446dff" d="M28 2 6 38h16l-6 24 32-40H34l10-20z"/></svg>
+      <h1 class="font-semibold text-lg">Thunder 전적검색</h1>
+      <form id="searchForm" class="ms-auto flex gap-2 w-full max-w-md" role="search" aria-label="소환사 검색">
+        <label for="q" class="sr-only">Riot ID 입력 (예: name#KR1)</label>
+        <input id="q" name="q" required
+          class="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm bg-white dark:bg-gray-900"
+          placeholder="Riot ID (예: Hide on bush#KR1)" autocomplete="off" />
+        <button id="submitBtn" type="submit"
+          class="rounded-lg bg-thunder-600 hover:bg-thunder-700 px-4 py-2 text-white text-sm focus:outline-none focus:ring ring-thunder-400"
+          aria-label="검색">검색</button>
       </form>
     </div>
   </header>
 
-  <main id="main" class="max-w-5xl mx-auto px-4 py-6 space-y-6">
-    <!-- 상태: idle/loading/success/error -->
-    <section id="status" class="text-sm text-gray-600 dark:text-gray-400">
-      상태: <span id="stateText">idle</span>
-    </section>
+  <main class="max-w-5xl mx-auto px-4 py-6">
+    <section id="status" class="sr-only" aria-live="polite"></section>
 
     <!-- 결과 영역 -->
-    <section id="result" class="grid md:grid-cols-3 gap-4">
-      <!-- 프로필 카드 -->
-      <article id="profileCard" class="md:col-span-1 p-4 rounded-lg border border-gray-200 dark:border-gray-800">
-        <h2 class="font-semibold mb-3">프로필</h2>
-        <div id="profileSkeleton" class="space-y-2 hidden">
-          <div class="h-5 w-28 skeleton rounded"></div>
-          <div class="h-4 w-20 skeleton rounded"></div>
-          <div class="h-4 w-24 skeleton rounded"></div>
-        </div>
-        <div id="profileContent" class="text-sm text-gray-700 dark:text-gray-300">
-          검색 후 표시됩니다.
-        </div>
-      </article>
+    <div id="result" class="grid gap-4">
+      <!-- 초기 안내 -->
+      <div id="empty" class="text-sm text-gray-600 dark:text-gray-400">
+        Riot ID를 입력하고 Enter 또는 검색을 누르세요.
+      </div>
 
-      <!-- 차트들 -->
-      <article class="md:col-span-2 grid gap-4">
-        <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-800">
-          <h2 class="font-semibold mb-3">KDA 막대</h2>
-          <canvas id="kdaChart" height="120" aria-label="KDA 막대 차트" role="img"></canvas>
+      <!-- 스켈레톤 -->
+      <div id="skeleton" class="hidden grid gap-4">
+        <div class="rounded-xl p-4 border border-gray-200 dark:border-gray-800">
+          <div class="h-5 w-40 skeleton rounded mb-3"></div>
+          <div class="h-4 w-64 skeleton rounded"></div>
         </div>
-        <div class="grid md:grid-cols-2 gap-4">
-          <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-800">
-            <h2 class="font-semibold mb-3">승률 도넛</h2>
-            <canvas id="winChart" height="160" aria-label="승률 도넛 차트" role="img"></canvas>
-          </div>
-          <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-800">
-            <h2 class="font-semibold mb-3">포지션 분포</h2>
-            <canvas id="posChart" height="160" aria-label="포지션 분포 차트" role="img"></canvas>
+        <div class="grid md:grid-cols-3 gap-4">
+          <div class="h-48 skeleton rounded-xl"></div>
+          <div class="h-48 skeleton rounded-xl"></div>
+          <div class="h-48 skeleton rounded-xl"></div>
+        </div>
+      </div>
+
+      <!-- 데이터 -->
+      <div id="profile" class="hidden rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+        <div class="flex items-center gap-3">
+          <img id="icon" alt="" width="48" height="48" class="rounded-lg" loading="lazy">
+          <div>
+            <h2 id="name" class="font-semibold"></h2>
+            <p id="level" class="text-xs text-gray-600 dark:text-gray-400"></p>
           </div>
         </div>
-      </article>
-    </section>
+      </div>
 
-    <!-- 빈 상태 -->
-    <section id="empty" class="text-center text-gray-500 dark:text-gray-400">
-      예시: <button type="button" id="fillDemo" class="underline text-blue-700 dark:text-blue-400">데모 데이터 채우기</button>
-    </section>
+      <div id="charts" class="hidden grid md:grid-cols-3 gap-4">
+        <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+          <h3 class="text-sm font-medium mb-2">KDA(최근 10경기)</h3>
+          <canvas id="kdaBar" aria-label="KDA 차트" role="img"></canvas>
+        </div>
+        <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+          <h3 class="text-sm font-medium mb-2">승률</h3>
+          <canvas id="winDonut" aria-label="승률 도넛" role="img"></canvas>
+        </div>
+        <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+          <h3 class="text-sm font-medium mb-2">포지션 분포</h3>
+          <canvas id="posPie" aria-label="포지션 분포" role="img"></canvas>
+        </div>
+      </div>
+
+      <!-- 빈 상태 -->
+      <div id="emptyGames" class="hidden text-sm text-gray-600 dark:text-gray-400">
+        최근 경기 데이터가 없습니다.
+      </div>
+    </div>
   </main>
 
-  <!-- 우하단 에러 배지 -->
-  <div id="errorBadge"
-       class="fixed bottom-3 right-3 z-50 hidden max-w-[80vw] rounded-lg border border-red-300 bg-red-50 text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-200 p-3 text-xs">
-    <div class="font-semibold mb-1">에러</div>
-    <pre id="errorText" class="whitespace-pre-wrap break-words"></pre>
-  </div>
+  <!-- 토스트 -->
+  <div id="toast" class="fixed bottom-4 right-4 hidden max-w-sm rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-200 p-3 text-sm shadow-lg toast-enter" role="alert" aria-live="assertive"></div>
 
-  <!-- 앱 스크립트 -->
-  <script type="module" src="/assets/app.js"></script>
+  <!-- 하단 에러 배지 -->
+  <div id="errBadge" class="fixed bottom-2 left-2 text-xs text-gray-600 dark:text-gray-400"></div>
+
+  <!-- App -->
+  <script type="module" src="./assets/app.js"></script>
 </body>
 </html>
