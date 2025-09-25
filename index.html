@@ -1,262 +1,109 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" class="h-full">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Thunder — LoL Stats</title>
-  <meta name="description" content="LoL stats viewer. Search summoners, matches, champions, and leaderboards.">
-  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
-  <script>
-    /* ⛏️ 여기를 너의 Worker URL로 교체! 예: https://cjsend.abcdef12345.workers.dev */
-    window.API_BASE = "https://cjsend.erickparkcha.workers.dev/";
-  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Thunder 전적검색 v1</title>
+
+  <!-- Tailwind CDN: 데모용. 프로덕션 전환 전 빌드 권장 -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+
+  <!-- 파비콘 404 방지(간단한 data URL) -->
+  <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ctext y='24' x='2' font-size='24'%3E⚡%3C/text%3E%3C/svg%3E">
+
   <style>
-    @media (prefers-color-scheme: dark){ :root{ color-scheme: dark; } }
-    .card{ border-radius:1rem; padding:1rem; background:#fff; border:1px solid #eee; box-shadow:0 1px 2px rgba(0,0,0,.04);}
-    .dark .card{ background:#0a0a0a; border-color:#222; }
-    .badge{ font-size:.75rem; padding:.25rem .5rem; border-radius:9999px; background:#f3f3f3;}
-    .dark .badge{ background:#111; }
+    /* 전면 오버레이가 클릭을 가로채는 문제 방지 */
+    [data-debug-overlay], .debug-overlay, .backdrop, .modal-backdrop {
+      pointer-events: none !important;
+    }
+    /* 스켈레톤 */
+    .skeleton{background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 37%,#e5e7eb 63%);background-size:400% 100%;animation:skeleton 1.4s ease infinite}
+    @keyframes skeleton{0%{background-position:100% 50%}100%{background-position:0 50%}}
   </style>
 </head>
-<body class="bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100">
-<header class="sticky top-0 z-10 backdrop-blur bg-white/70 dark:bg-neutral-950/70 border-b border-neutral-200/50 dark:border-neutral-800">
-  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-    <div class="text-xl font-bold">Thunder</div>
-    <div class="flex-1"></div>
-    <button id="toggleTheme" class="text-sm px-3 py-1 rounded-full border">🌓</button>
+
+<body class="h-full bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:bg-yellow-300 focus:text-black focus:px-3 focus:py-1 rounded">
+    본문으로 건너뛰기
+  </a>
+
+  <!-- 고정 검색바 -->
+  <header class="sticky top-0 z-40 border-b border-gray-200 dark:border-gray-800 bg-white/85 dark:bg-gray-950/85 backdrop-blur">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-2">
+      <span class="text-2xl">⚡</span>
+      <h1 class="text-lg font-semibold mr-auto">Thunder 전적검색</h1>
+
+      <form id="searchForm" class="flex items-center gap-2" role="search" aria-label="소환사 검색">
+        <label for="riotId" class="sr-only">Riot ID (예: name#TAG)</label>
+        <input id="riotId" name="riotId" required
+               class="w-56 md:w-72 px-3 py-2 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
+               placeholder="name#TAG" autocomplete="off" />
+        <button id="searchBtn" type="submit"
+                class="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+          검색
+        </button>
+      </form>
+    </div>
+  </header>
+
+  <main id="main" class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+    <!-- 상태: idle/loading/success/error -->
+    <section id="status" class="text-sm text-gray-600 dark:text-gray-400">
+      상태: <span id="stateText">idle</span>
+    </section>
+
+    <!-- 결과 영역 -->
+    <section id="result" class="grid md:grid-cols-3 gap-4">
+      <!-- 프로필 카드 -->
+      <article id="profileCard" class="md:col-span-1 p-4 rounded-lg border border-gray-200 dark:border-gray-800">
+        <h2 class="font-semibold mb-3">프로필</h2>
+        <div id="profileSkeleton" class="space-y-2 hidden">
+          <div class="h-5 w-28 skeleton rounded"></div>
+          <div class="h-4 w-20 skeleton rounded"></div>
+          <div class="h-4 w-24 skeleton rounded"></div>
+        </div>
+        <div id="profileContent" class="text-sm text-gray-700 dark:text-gray-300">
+          검색 후 표시됩니다.
+        </div>
+      </article>
+
+      <!-- 차트들 -->
+      <article class="md:col-span-2 grid gap-4">
+        <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-800">
+          <h2 class="font-semibold mb-3">KDA 막대</h2>
+          <canvas id="kdaChart" height="120" aria-label="KDA 막대 차트" role="img"></canvas>
+        </div>
+        <div class="grid md:grid-cols-2 gap-4">
+          <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-800">
+            <h2 class="font-semibold mb-3">승률 도넛</h2>
+            <canvas id="winChart" height="160" aria-label="승률 도넛 차트" role="img"></canvas>
+          </div>
+          <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-800">
+            <h2 class="font-semibold mb-3">포지션 분포</h2>
+            <canvas id="posChart" height="160" aria-label="포지션 분포 차트" role="img"></canvas>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- 빈 상태 -->
+    <section id="empty" class="text-center text-gray-500 dark:text-gray-400">
+      예시: <button type="button" id="fillDemo" class="underline text-blue-700 dark:text-blue-400">데모 데이터 채우기</button>
+    </section>
+  </main>
+
+  <!-- 우하단 에러 배지 -->
+  <div id="errorBadge"
+       class="fixed bottom-3 right-3 z-50 hidden max-w-[80vw] rounded-lg border border-red-300 bg-red-50 text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-200 p-3 text-xs">
+    <div class="font-semibold mb-1">에러</div>
+    <pre id="errorText" class="whitespace-pre-wrap break-words"></pre>
   </div>
-  <div class="max-w-6xl mx-auto px-4 pb-3">
-    <div class="flex gap-2">
-      <input id="q" class="w-full px-4 py-3 rounded-2xl border" placeholder="소환사 검색 (예: Hide on bush)" />
-      <button id="btnSearch" class="px-4 py-3 rounded-2xl bg-black text-white">검색</button>
-    </div>
-    <div class="text-xs text-neutral-500 mt-1">KR 기본, 다른 지역은 추후 추가</div>
-  </div>
-  <nav class="max-w-6xl mx-auto px-4">
-    <div class="flex gap-2 pb-2">
-      <button data-tab="profile" class="tab px-3 py-2 rounded-xl bg-neutral-200 dark:bg-neutral-800">프로필</button>
-      <button data-tab="matches" class="tab px-3 py-2 rounded-xl">매치</button>
-      <button data-tab="champions" class="tab px-3 py-2 rounded-xl">챔피언</button>
-      <button data-tab="leaderboard" class="tab px-3 py-2 rounded-xl">랭킹</button>
-    </div>
-  </nav>
-</header>
 
-<main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
-  <!-- PROFILE -->
-  <section id="panel-profile" class="space-y-3">
-    <div class="card">
-      <div id="profileBox" class="text-sm text-neutral-500">소환사를 검색하면 요약이 표시됩니다.</div>
-    </div>
-  </section>
-
-  <!-- MATCHES -->
-  <section id="panel-matches" class="hidden space-y-3">
-    <div class="card">
-      <div class="flex items-center justify-between">
-        <div class="font-semibold">최근 매치</div>
-        <div class="flex gap-2 text-sm">
-          <select id="filterResult" class="border rounded-lg px-2 py-1">
-            <option value="all">전체</option><option value="win">승</option><option value="lose">패</option>
-          </select>
-          <select id="filterLane" class="border rounded-lg px-2 py-1">
-            <option value="all">모든 포지션</option><option>TOP</option><option>JUNGLE</option><option>MID</option><option>ADC</option><option>SUPPORT</option>
-          </select>
-        </div>
-      </div>
-      <div id="matchList" class="mt-3 space-y-3"></div>
-      <button id="loadMore" class="mt-3 w-full py-2 border rounded-xl">더 보기</button>
-    </div>
-  </section>
-
-  <!-- CHAMPIONS -->
-  <section id="panel-champions" class="hidden space-y-3">
-    <div class="card">
-      <div class="font-semibold">챔피언 메타(요약)</div>
-      <div id="champMeta" class="text-sm text-neutral-500">패치 스냅샷 준비 중…</div>
-    </div>
-  </section>
-
-  <!-- LEADERBOARD -->
-  <section id="panel-leaderboard" class="hidden space-y-3">
-    <div class="card">
-      <div class="flex items-center justify-between">
-        <div class="font-semibold">KR 챌린저 — 솔로랭크</div>
-        <button id="refreshLb" class="text-sm px-3 py-1 rounded-xl border">새로고침</button>
-      </div>
-      <div id="lbTable" class="mt-3 text-sm"></div>
-    </div>
-  </section>
-</main>
-
-<footer class="max-w-6xl mx-auto px-4 py-10 text-xs text-neutral-500">
-  Data based on Riot Games API. Not endorsed by Riot Games.
-</footer>
-
-<!-- 앱 스크립트: DOMContentLoaded로 안전 실행 -->
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  // 안전장치: API_BASE 확인
-  if (!window.API_BASE || !/^https?:\/\//.test(window.API_BASE)) {
-    alert("API_BASE 미설정 또는 형식 오류: workers.dev 전체 URL을 넣어주세요.");
-    return;
-  }
-
-  // 테마 토글
-  const toggleBtn = document.getElementById("toggleTheme");
-  if (localStorage.getItem("theme")==="dark") document.body.classList.add("dark");
-  toggleBtn?.addEventListener("click", () => {
-    const d = document.body.classList.toggle("dark");
-    localStorage.setItem("theme", d ? "dark" : "light");
-  });
-
-  // 탭
-  const tabs = document.querySelectorAll(".tab");
-  const panels = {
-    profile: document.getElementById("panel-profile"),
-    matches: document.getElementById("panel-matches"),
-    champions: document.getElementById("panel-champions"),
-    leaderboard: document.getElementById("panel-leaderboard"),
-  };
-  tabs.forEach(b=>{
-    b.addEventListener("click", ()=>{
-      tabs.forEach(x=>x.classList.remove("bg-neutral-200","dark:bg-neutral-800"));
-      b.classList.add("bg-neutral-200","dark:bg-neutral-800");
-      const tab = b.dataset.tab;
-      Object.values(panels).forEach(p=>p.classList.add("hidden"));
-      panels[tab]?.classList.remove("hidden");
-    });
-  });
-
-  // 상태 표시 도우미
-  const profileBox = document.getElementById("profileBox");
-  const setProfileLoading = ()=> profileBox.innerHTML = `<div class="animate-pulse text-neutral-400">불러오는 중…</div>`;
-  const setProfileError = (msg)=> profileBox.innerHTML = `<div class="text-red-500">${msg}</div>`;
-  const renderProfile = (s)=>{
-    profileBox.innerHTML = `
-      <div class="flex items-center gap-3">
-        <img src="https://ddragon.leagueoflegends.com/cdn/14.18.1/img/profileicon/${s.profileIconId}.png" class="w-12 h-12 rounded-xl" alt="" />
-        <div>
-          <div class="text-lg font-bold">${s.name}</div>
-          <div class="text-sm text-neutral-500">Level ${s.summonerLevel}</div>
-        </div>
-      </div>`;
-  };
-
-  // 전역 상태
-  const q = document.getElementById("q");
-  const matchList = document.getElementById("matchList");
-  const loadMoreBtn = document.getElementById("loadMore");
-  let CURRENT = { summoner:null, puuid:null, start:0, ids:[] };
-
-  // 검색
-  async function searchSummoner() {
-    let raw = q.value.trim();
-    if (!raw) return;
-    const name = raw.includes("#") ? raw.split("#")[0] : raw; // name#tag → name만 사용
-    setProfileLoading();
-    try {
-      const r = await fetch(`${window.API_BASE}/api/summoner?name=${encodeURIComponent(name)}&region=kr`);
-      if (!r.ok) { setProfileError("소환사를 찾을 수 없습니다."); return; }
-      const sum = await r.json();
-      CURRENT = { summoner:sum, puuid:sum.puuid, start:0, ids:[] };
-      renderProfile(sum);
-      await loadMatchIds(true);
-    } catch (e) {
-      setProfileError("요청 실패: " + (e?.message || e));
-    }
-  }
-  document.getElementById("btnSearch")?.addEventListener("click", searchSummoner);
-  q?.addEventListener("keydown", (e)=>{ if(e.key==="Enter") searchSummoner(); });
-
-  // 매치 목록
-  async function loadMatchIds(reset){
-    if (!CURRENT.puuid) return;
-    if (reset) {
-      CURRENT.start = 0; CURRENT.ids = [];
-      matchList.innerHTML = "";
-      panels.matches.classList.remove("hidden");
-      tabs.forEach(x=>x.classList.remove("bg-neutral-200","dark:bg-neutral-800"));
-      document.querySelector('[data-tab="matches"]')?.classList.add("bg-neutral-200","dark:bg-neutral-800");
-    }
-    try{
-      const r = await fetch(`${window.API_BASE}/api/matches?puuid=${CURRENT.puuid}&start=${CURRENT.start}&count=10&region=kr`);
-      if (!r.ok) return;
-      const ids = await r.json();
-      CURRENT.ids.push(...ids);
-      CURRENT.start += 10;
-      for (const id of ids) {
-        const card = document.createElement("div");
-        card.className = "card";
-        card.textContent = `매치: ${id}`;
-        card.addEventListener("click", () => openMatch(id, card));
-        matchList.appendChild(card);
-      }
-    } catch(e){ /* ignore */ }
-  }
-  loadMoreBtn?.addEventListener("click", ()=>loadMatchIds(false));
-
-  // 매치 상세
-  async function openMatch(id, el){
-    el.innerHTML = `<div class="animate-pulse text-neutral-400">상세 불러오는 중…</div>`;
-    try{
-      const r = await fetch(`${window.API_BASE}/api/match/${id}`);
-      if (!r.ok){ el.innerHTML = `<div class="text-red-500">불러오기 실패</div>`; return; }
-      const m = await r.json();
-      const info = m.info;
-      const dur = Math.round(info.gameDuration/60);
-      el.innerHTML = `
-        <div class="flex items-center justify-between">
-          <div class="font-semibold">${info.gameMode} · ${dur}분</div>
-          <div class="badge">${new Date(info.gameStartTimestamp).toLocaleString()}</div>
-        </div>
-        <div class="grid md:grid-cols-2 gap-3 mt-3">
-          ${info.teams.map((t,ti)=>`
-            <div class="border rounded-xl p-3">
-              <div class="font-medium mb-2">팀 ${ti+1} ${t.win ? '✅ 승' : '❌ 패'}</div>
-              ${info.participants.filter(p=>p.teamId===t.teamId).map(p=>{
-               const kda = p.deaths === 0
-  ? `${p.kills}/0/${p.assists}`
-  : `${p.kills}/${p.deaths}/${p.assists}`;
-
-                return `
-                  <div class="flex items-center gap-2 py-1 text-sm">
-                    <img class="w-8 h-8 rounded" src="https://ddragon.leagueoflegends.com/cdn/14.18.1/img/champion/${p.championName}.png" alt="">
-                    <div class="flex-1 truncate">${p.summonerName}</div>
-                    <div class="tabular-nums">${kda}</div>
-                    <div class="tabular-nums w-16 text-right">${p.totalDamageDealtToChampions}</div>
-                  </div>`;
-              }).join("")}
-            </div>
-          `).join("")}
-        </div>`;
-    }catch(e){ el.innerHTML = `<div class="text-red-500">오류: ${e?.message || e}</div>`; }
-  }
-
-  // 리더보드
-  async function loadLeaderboard(){
-    try{
-      const r = await fetch(`${window.API_BASE}/api/leaderboard?queue=RANKED_SOLO_5x5&region=kr`);
-      if (!r.ok) return;
-      const d = await r.json();
-      const rows = (d.entries || []).slice(0, 100).sort((a,b)=>b.leaguePoints-a.leaguePoints);
-      document.getElementById("lbTable").innerHTML = `
-        <div class="grid grid-cols-5 gap-2">
-          <div class="font-semibold">#</div><div class="font-semibold">소환사</div>
-          <div class="font-semibold">LP</div><div class="font-semibold">승</div><div class="font-semibold">패</div>
-          ${rows.map((e,i)=>`
-            <div>${i+1}</div><div class="truncate">${e.summonerName}</div>
-            <div>${e.leaguePoints}</div><div>${e.wins}</div><div>${e.losses}</div>
-          `).join("")}
-        </div>`;
-    }catch(e){ /* ignore */ }
-  }
-  document.getElementById("refreshLb")?.addEventListener("click", loadLeaderboard);
-
-  // 초기 로드
-  loadLeaderboard();
-});
-</script>
+  <!-- 앱 스크립트 -->
+  <script type="module" src="/assets/app.js"></script>
 </body>
 </html>
