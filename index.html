@@ -6,9 +6,12 @@
   <title>Thunder — LoL Stats</title>
   <meta name="description" content="LoL stats viewer. Search summoners, matches, champions, and leaderboards.">
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <script>
+    /* ⛏️ 여기를 너의 Worker URL로 교체! 예: https://cjsend.abcdef12345.workers.dev */
+    window.API_BASE = "https://cjsend.erickparkcha.workers.dev/";
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    .card{ --tw:0; }
     @media (prefers-color-scheme: dark){ :root{ color-scheme: dark; } }
     .card{ border-radius:1rem; padding:1rem; background:#fff; border:1px solid #eee; box-shadow:0 1px 2px rgba(0,0,0,.04);}
     .dark .card{ background:#0a0a0a; border-color:#222; }
@@ -91,19 +94,22 @@
   Data based on Riot Games API. Not endorsed by Riot Games.
 </footer>
 
+<!-- 앱 스크립트: DOMContentLoaded로 안전 실행 -->
 <script>
-  // ⛏️ 여기를 네 워커 URL로 교체하세요 (예: https://cjsend.abcdef123456.workers.dev)
-  const API_BASE = "https://cjsend.erickparkcha.workers.dev/";
+document.addEventListener('DOMContentLoaded', () => {
+  // 안전장치: API_BASE 확인
+  if (!window.API_BASE || !/^https?:\/\//.test(window.API_BASE)) {
+    alert("API_BASE 미설정 또는 형식 오류: workers.dev 전체 URL을 넣어주세요.");
+    return;
+  }
 
   // 테마 토글
-  (() => {
-    const btn = document.getElementById("toggleTheme");
-    if (localStorage.getItem("theme")==="dark") document.body.classList.add("dark");
-    btn.addEventListener("click", () => {
-      const d = document.body.classList.toggle("dark");
-      localStorage.setItem("theme", d ? "dark" : "light");
-    });
-  })();
+  const toggleBtn = document.getElementById("toggleTheme");
+  if (localStorage.getItem("theme")==="dark") document.body.classList.add("dark");
+  toggleBtn?.addEventListener("click", () => {
+    const d = document.body.classList.toggle("dark");
+    localStorage.setItem("theme", d ? "dark" : "light");
+  });
 
   // 탭
   const tabs = document.querySelectorAll(".tab");
@@ -119,74 +125,63 @@
       b.classList.add("bg-neutral-200","dark:bg-neutral-800");
       const tab = b.dataset.tab;
       Object.values(panels).forEach(p=>p.classList.add("hidden"));
-      panels[tab].classList.remove("hidden");
+      panels[tab]?.classList.remove("hidden");
     });
   });
 
-  // 상태 표시
-  function setProfileLoading(){
-    document.getElementById("profileBox").innerHTML = `<div class="animate-pulse text-neutral-400">불러오는 중…</div>`;
-  }
-  function setProfileError(msg){
-    document.getElementById("profileBox").innerHTML = `<div class="text-red-500">${msg}</div>`;
-  }
-  function renderProfile(s){
-    document.getElementById("profileBox").innerHTML = `
+  // 상태 표시 도우미
+  const profileBox = document.getElementById("profileBox");
+  const setProfileLoading = ()=> profileBox.innerHTML = `<div class="animate-pulse text-neutral-400">불러오는 중…</div>`;
+  const setProfileError = (msg)=> profileBox.innerHTML = `<div class="text-red-500">${msg}</div>`;
+  const renderProfile = (s)=>{
+    profileBox.innerHTML = `
       <div class="flex items-center gap-3">
         <img src="https://ddragon.leagueoflegends.com/cdn/14.18.1/img/profileicon/${s.profileIconId}.png" class="w-12 h-12 rounded-xl" alt="" />
         <div>
           <div class="text-lg font-bold">${s.name}</div>
           <div class="text-sm text-neutral-500">Level ${s.summonerLevel}</div>
         </div>
-      </div>
-    `;
-  }
+      </div>`;
+  };
 
-  // 검색
+  // 전역 상태
+  const q = document.getElementById("q");
+  const matchList = document.getElementById("matchList");
+  const loadMoreBtn = document.getElementById("loadMore");
   let CURRENT = { summoner:null, puuid:null, start:0, ids:[] };
 
+  // 검색
   async function searchSummoner() {
-    let raw = document.getElementById("q").value.trim();
+    let raw = q.value.trim();
     if (!raw) return;
-    // Riot ID 입력(name#tag)이면 Summoner-v4 호환을 위해 name만 사용
-    const name = raw.includes("#") ? raw.split("#")[0] : raw;
-
-    if (!API_BASE.startsWith("http")) {
-      alert("API_BASE가 설정되지 않았습니다. index.html 상단에서 워커 URL을 지정하세요.");
-      return;
-    }
-
+    const name = raw.includes("#") ? raw.split("#")[0] : raw; // name#tag → name만 사용
+    setProfileLoading();
     try {
-      setProfileLoading();
-      const r = await fetch(`${API_BASE}/api/summoner?name=${encodeURIComponent(name)}&region=kr`);
+      const r = await fetch(`${window.API_BASE}/api/summoner?name=${encodeURIComponent(name)}&region=kr`);
       if (!r.ok) { setProfileError("소환사를 찾을 수 없습니다."); return; }
       const sum = await r.json();
-      CURRENT.summoner = sum;
-      CURRENT.puuid = sum.puuid;
-      CURRENT.start = 0;
+      CURRENT = { summoner:sum, puuid:sum.puuid, start:0, ids:[] };
       renderProfile(sum);
       await loadMatchIds(true);
     } catch (e) {
-      setProfileError("요청 실패: " + (e && e.message ? e.message : e));
+      setProfileError("요청 실패: " + (e?.message || e));
     }
   }
-
-  document.getElementById("btnSearch").addEventListener("click", searchSummoner);
-  document.getElementById("q").addEventListener("keydown", e => { if(e.key==="Enter") searchSummoner(); });
+  document.getElementById("btnSearch")?.addEventListener("click", searchSummoner);
+  q?.addEventListener("keydown", (e)=>{ if(e.key==="Enter") searchSummoner(); });
 
   // 매치 목록
   async function loadMatchIds(reset){
     if (!CURRENT.puuid) return;
     if (reset) {
-      CURRENT.start = 0;
-      CURRENT.ids = [];
-      document.getElementById("matchList").innerHTML = "";
+      CURRENT.start = 0; CURRENT.ids = [];
+      matchList.innerHTML = "";
       panels.matches.classList.remove("hidden");
       tabs.forEach(x=>x.classList.remove("bg-neutral-200","dark:bg-neutral-800"));
-      document.querySelector('[data-tab="matches"]').classList.add("bg-neutral-200","dark:bg-neutral-800");
+      document.querySelector('[data-tab="matches"]')?.classList.add("bg-neutral-200","dark:bg-neutral-800");
     }
     try{
-      const r = await fetch(`${API_BASE}/api/matches?puuid=${CURRENT.puuid}&start=${CURRENT.start}&count=10&region=kr`);
+      const r = await fetch(`${window.API_BASE}/api/matches?puuid=${CURRENT.puuid}&start=${CURRENT.start}&count=10&region=kr`);
       if (!r.ok) return;
       const ids = await r.json();
       CURRENT.ids.push(...ids);
@@ -196,17 +191,17 @@
         card.className = "card";
         card.textContent = `매치: ${id}`;
         card.addEventListener("click", () => openMatch(id, card));
-        document.getElementById("matchList").appendChild(card);
+        matchList.appendChild(card);
       }
     } catch(e){ /* ignore */ }
   }
-  document.getElementById("loadMore").addEventListener("click", ()=>loadMatchIds(false));
+  loadMoreBtn?.addEventListener("click", ()=>loadMatchIds(false));
 
   // 매치 상세
   async function openMatch(id, el){
     el.innerHTML = `<div class="animate-pulse text-neutral-400">상세 불러오는 중…</div>`;
     try{
-      const r = await fetch(`${API_BASE}/api/match/${id}`);
+      const r = await fetch(`${window.API_BASE}/api/match/${id}`);
       if (!r.ok){ el.innerHTML = `<div class="text-red-500">불러오기 실패</div>`; return; }
       const m = await r.json();
       const info = m.info;
@@ -221,7 +216,7 @@
             <div class="border rounded-xl p-3">
               <div class="font-medium mb-2">팀 ${ti+1} ${t.win ? '✅ 승' : '❌ 패'}</div>
               ${info.participants.filter(p=>p.teamId===t.teamId).map(p=>{
-                const kda = p.deaths === 0 ? \`\${p.kills}/0/\${p.assists}\` : \`\${p.kills}/\${p.deaths}/\${p.assists}\`;
+                const kda = p.deaths===0 ? \`\${p.kills}/0/\${p.assists}\` : \`\${p.kills}/\${p.deaths}/\${p.assists}\`;
                 return `
                   <div class="flex items-center gap-2 py-1 text-sm">
                     <img class="w-8 h-8 rounded" src="https://ddragon.leagueoflegends.com/cdn/14.18.1/img/champion/${p.championName}.png" alt="">
@@ -232,15 +227,14 @@
               }).join("")}
             </div>
           `).join("")}
-        </div>
-      `;
-    }catch(e){ el.innerHTML = `<div class="text-red-500">오류: ${e && e.message ? e.message : e}</div>`; }
+        </div>`;
+    }catch(e){ el.innerHTML = `<div class="text-red-500">오류: ${e?.message || e}</div>`; }
   }
 
   // 리더보드
   async function loadLeaderboard(){
     try{
-      const r = await fetch(`${API_BASE}/api/leaderboard?queue=RANKED_SOLO_5x5&region=kr`);
+      const r = await fetch(`${window.API_BASE}/api/leaderboard?queue=RANKED_SOLO_5x5&region=kr`);
       if (!r.ok) return;
       const d = await r.json();
       const rows = (d.entries || []).slice(0, 100).sort((a,b)=>b.leaguePoints-a.leaguePoints);
@@ -255,10 +249,11 @@
         </div>`;
     }catch(e){ /* ignore */ }
   }
-  document.getElementById("refreshLb").addEventListener("click", loadLeaderboard);
+  document.getElementById("refreshLb")?.addEventListener("click", loadLeaderboard);
 
-  // 초기 로딩
+  // 초기 로드
   loadLeaderboard();
+});
 </script>
 </body>
 </html>
